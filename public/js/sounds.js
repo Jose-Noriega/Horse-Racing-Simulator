@@ -17,7 +17,9 @@
 // Browsers only start audio after a user gesture. Call sounds.unlock() from a
 // click or keydown. Until it finishes, play() does nothing.
 
-import { MIX } from "./settings.js";
+import { MIX, MIX_DB } from "./settings.js";
+
+const dbToGain = (db) => 10 ** (db / 20);
 
 const RATE = 22050; // everything is made at 22.05k. the browser resamples on playback
 const MAX_VOICES = 96; // every hoof is its own sound. ~50 overlap at full gallop
@@ -40,12 +42,23 @@ export function seededRng(seed) {
   };
 }
 
+// Linear fade at both ends, in place. A sound that stops while it's still loud
+// ends in a click. Several of ours did (a 0.18 s beep is still at 24% when it
+// stops), and that was part of what made them jarring.
+export function fadeEdges(x, inSecs = 0.003, outSecs = 0.015) {
+  const a = Math.min(x.length, n(inSecs));
+  const b = Math.min(x.length, n(outSecs));
+  for (let i = 0; i < a; i++) x[i] *= i / a;
+  for (let i = 0; i < b; i++) x[x.length - 1 - i] *= i / b;
+  return x;
+}
+
 export function tone(freq, dur, vol = 0.5, decay = 6) {
   const out = new Float32Array(n(dur));
   for (let i = 0; i < out.length; i++) {
     out[i] = vol * Math.sin((2 * Math.PI * freq * i) / RATE) * Math.exp((-decay * i) / RATE);
   }
-  return out;
+  return fadeEdges(out);
 }
 
 // White noise through a one-pole low-pass. Smaller lp = darker.
@@ -210,19 +223,31 @@ export class Sounds {
     if (this.ctx.state === "suspended") await this.ctx.resume();
     const m = MIX;
 
-    // name -> [samples, level, room [wet, tail] or null]
+    // Everything goes through one bus: master level, then a limiter, so a pile-up
+    // of hooves + gun + cheers can't clip or spike.
+    this.bus = this.ctx.createGain();
+    this.bus.gain.value = m.master;
+    this.limiter = this.ctx.createDynamicsCompressor();
+    this.limiter.threshold.value = -6; // dB
+    this.limiter.knee.value = 3;
+    this.limiter.ratio.value = 20;
+    this.limiter.attack.value = 0.003;
+    this.limiter.release.value = 0.15;
+    this.bus.connect(this.limiter).connect(this.ctx.destination);
+
+    // name -> [samples, room [wet, tail] or null]. Level comes from MIX_DB.
     const table = {
-      click: [click(), m.ui * 0.8, null],
-      tick: [tick(), m.ui * 0.6, null],
-      coin: [coin(), m.ui, null],
-      beep: [beep(), m.ui, null],
-      ding: [ding(), m.ui, null],
-      fanfare: [fanfare(), m.ui, null],
-      gunshot: [gunshot(), m.gunshot, [m.wet * 1.5, 1.1]],
-      boom: [boom(), m.boom, [m.wet * 1.3, 1.4]],
+      click: [click(), null],
+      tick: [tick(), null],
+      coin: [coin(), null],
+      beep: [beep(), null],
+      ding: [ding(), null],
+      fanfare: [fanfare(), null],
+      gunshot: [gunshot(), [m.wet * 1.5, 1.1]],
+      boom: [boom(), [m.wet * 1.3, 1.4]],
     };
-    for (const [name, [samples, level, space]] of Object.entries(table)) {
-      this.buffers[name] = { buffer: this.make(normalize(space ? room(samples, ...space) : samples), level), volume: 1 };
+    for (const [name, [samples, space]] of Object.entries(table)) {
+      this.buffers[name] = { buffer: this.make(normalize(space ? room(samples, ...space) : samples), MIX_DB[name]), volume: 1 };
     }
     await this.buildSteps();
     this.on = true;
@@ -247,15 +272,16 @@ export class Sounds {
     }
     for (let lane = 0; lane < this.numHorses; lane++) {
       const ratio = 0.75 + (0.35 * lane) / Math.max(1, this.numHorses - 1); // low lane = low thud
-      this.steps.push(bases.map((b) => this.make(normalize(resample(b, ratio)), 1)));
+      this.steps.push(bases.map((b) => this.make(normalize(resample(b, ratio)), MIX_DB.step)));
     }
   }
 
-  // Samples -> AudioBuffer, soft-limited and scaled by the master level.
-  make(samples, level) {
+  // Normalized samples -> AudioBuffer whose peak is peakDb (dBFS).
+  make(samples, peakDb) {
     const buf = this.ctx.createBuffer(1, samples.length, RATE);
+    const gain = dbToGain(peakDb);
     const out = buf.getChannelData(0);
-    for (let i = 0; i < samples.length; i++) out[i] = Math.tanh(samples[i] * level) * MIX.master;
+    for (let i = 0; i < samples.length; i++) out[i] = samples[i] * gain;
     return buf;
   }
 
@@ -277,9 +303,9 @@ export class Sounds {
     if (pan !== 0 && this.ctx.createStereoPanner) {
       const p = this.ctx.createStereoPanner();
       p.pan.value = pan;
-      gain.connect(p).connect(this.ctx.destination);
+      gain.connect(p).connect(this.bus);
     } else {
-      gain.connect(this.ctx.destination);
+      gain.connect(this.bus);
     }
     this.active.add(src);
     src.onended = () => this.active.delete(src);

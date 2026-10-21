@@ -55,13 +55,26 @@ export const HORSE_COLORS = [
   [90, 90, 90],
 ];
 
-// Sound mix. Tweak by ear. 0..1 unless noted.
+// Sound mix. Tweak by ear.
+// Peak level of each sound on its own, in dBFS (0 = as loud as it gets).
+// The order is the point: the gun and the boom are the loudest events. Then the
+// fanfare. Then the tones. UI ticks are barely there. Short tones around 1-2 kHz
+// sound louder than a thud at the same peak, so they sit well below the gun.
+// A limiter on the master catches anything that stacks up.
+export const MIX_DB = {
+  click: -28,
+  tick: -34,
+  coin: -22,
+  beep: -18,
+  ding: -22,
+  fanfare: -16,
+  gunshot: -6,
+  boom: -8,
+  step: -14, // one hoof, before the per-field scaling below
+};
 export const MIX = {
-  master: 0.7,
-  ui: 0.35,
-  gunshot: 0.85,
-  boom: 0.8,
-  steps: 0.85, // whole field. each hoof gets this / sqrt(number of horses)
+  master: 0.9, // 0..1 after the limiter's input
+  steps: 1.0, // whole field. each hoof gets this / sqrt(number of horses)
   steps_swell: 0.35, // hooves get this much louder from the gate to the line
   duck: 0.3, // hooves drop to this when the gun or a boom goes off...
   duck_secs: 1.2, // ...and climb back over this long
