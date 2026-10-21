@@ -30,7 +30,7 @@ const STARTER_POS = [380, 470]; // in the infield, just left of the start line
 const PICK_PITCH = [1, 1.26, 1.5]; // playback rate per parlay leg: root, major third, fifth
 const FINISH_DING_PITCH = [1, 1.122, 1.26]; // 2nd, 3rd, 4th place step up. 5th and later get a quiet tick
 const PHOTO_FINISH_SECS = 0.35; // winner's margin on screen, under this gets the camera sting
-const CHEER_GAP = 0.8; // least seconds between crowd cheer sounds, so passes don't pile up
+const CHEER_GAP = 3.0; // least seconds between crowd cheer sounds. was 0.8, which was a constant wash
 const TICK_GAP = 0.09; // seconds between payout count-up ticks
 const SWISH_SCREENS = new Set(["menu", "betting", "results", "summary"]); // setup and race have their own cues
 
