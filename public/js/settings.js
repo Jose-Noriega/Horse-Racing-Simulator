@@ -79,7 +79,8 @@ export const MIX_DB = {
   gate: -30,
   photo: -31,
   debris: -31,
-  cheer: -34,
+  cheer: -30, // the swell. a recording. was -34, raised now that a bed sits under it
+  bed: -35, // the constant crowd under the race. a recording loop. the game rides it 0.5 to 1. was -38, sat under the hooves
   // UI
   error: -28,
   pick: -33,

@@ -124,6 +124,7 @@ export class Game {
     this.lastTick = 0;
     this.payoutDinged = false;
     this.lastCheerSound = -9; // time of the last crowd cheer sound
+    this.crowdBump = 0; // 0..1, jumps to 1 on a cheer and fades. rides the crowd bed
 
     // Secret mode
     this.exploded = new Set();
@@ -497,6 +498,8 @@ export class Game {
     this.shotTime = null;
     this.payoutDinged = false;
     this.lastCheerSound = -9;
+    this.crowdBump = 0;
+    this.sounds.stopBed(0.3);
     this.state = "setup";
     this.statusMessage = "";
     this.sounds.play("gate"); // the gate clanks shut as the horses line up
@@ -540,6 +543,7 @@ export class Game {
   goToResults() {
     this.applySettlements();
     this.state = "results";
+    this.sounds.stopBed(1.0);
     if (this.poolRefunded) this.soundQueue.push([this.time + 0.4, "sad"]); // nobody won, wah wah
   }
 
@@ -600,12 +604,23 @@ export class Game {
   cheerSound() {
     if (this.time - this.lastCheerSound < CHEER_GAP) return;
     this.lastCheerSound = this.time;
+    this.crowdBump = 1;
     this.sounds.play("cheer");
+  }
+
+  // The constant crowd under the race. Louder as the leader nears the line, and
+  // every cheer swell bumps it up for a moment, then it settles back.
+  rideBed(dt) {
+    this.crowdBump = Math.max(0, this.crowdBump - dt / 1.6);
+    const lead = Math.max(...this.field.map((h) => h.progress));
+    this.sounds.setBed(Math.min(1, 0.5 + 0.3 * lead + 0.4 * this.crowdBump));
   }
 
   raceStarted() {
     this.shotTime = this.time;
     this.sounds.play("gunshot");
+    this.sounds.startBed();
+    this.crowdBump = 1;
     this.soundQueue.push([this.time + 0.25, "cheer"]); // the crowd answers the gun
     this.lastCheerSound = this.time + 0.25;
     for (const h of this.field) this.cheer(h.id, 1.3);
@@ -748,6 +763,7 @@ export class Game {
     if (this.state !== "race") return;
     this.updateDust(dt);
     this.updateBoom(dt);
+    this.rideBed(dt);
 
     if (!this.raceFinished) {
       this.raceElapsed += dt;

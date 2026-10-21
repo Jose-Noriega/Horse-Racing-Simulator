@@ -85,6 +85,9 @@ export class Sounds {
     // If the file won't load there is simply no cheer.
     const crowd = await loadMono(this.ctx, "cheer.mp3");
     if (crowd) this.buffers.cheer = this.make(setLoudness(crowd, MIX_DB.cheer));
+    // The bed is a 7 s loop of stadium crowd noise. Its end crossfades into its start.
+    const bed = await loadMono(this.ctx, "crowd_bed.wav");
+    if (bed) this.bedBuffer = this.make(setLoudness(bed, MIX_DB.bed));
     await this.buildSteps();
     this.on = true;
   }
@@ -151,7 +154,36 @@ export class Sounds {
   play(name, volume = 1, rate = 1) {
     if (!this.on || this.muted) return;
     if (name === "gunshot" || name === "boom") this.duckAt = performance.now() / 1000;
+    if (!this.buffers[name]) return; // the cheer is a file, it can be missing
     this.voice(this.buffers[name], volume, 0, rate);
+  }
+
+  // The crowd bed. A quiet loop under the whole race. The swells (the "cheer"
+  // sound) sit on top of it. The game calls setBed every frame with 0..1.
+  startBed() {
+    if (!this.on || !this.bedBuffer || this.bed) return;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.bedBuffer;
+    src.loop = true;
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0; // fades up from silence, no pop
+    src.connect(gain).connect(this.bus);
+    src.start();
+    this.bed = { src, gain };
+    this.bedLevel = 0;
+  }
+
+  setBed(level) {
+    this.bedLevel = level;
+    if (this.bed) this.bed.gain.gain.setTargetAtTime(this.muted ? 0 : level, this.ctx.currentTime, 0.3);
+  }
+
+  stopBed(secs = 0.8) {
+    if (!this.bed) return;
+    const { src, gain } = this.bed;
+    this.bed = null;
+    gain.gain.setTargetAtTime(0, this.ctx.currentTime, secs / 4);
+    src.stop(this.ctx.currentTime + secs + 0.3);
   }
 
   // One hoof hit. pan is -1 (left) to 1 (right).
@@ -167,6 +199,7 @@ export class Sounds {
     this.muted = !this.muted;
     if (this.muted) for (const s of this.active) s.stop();
     else this.play("mute"); // a blip so you can tell it came back on
+    this.setBed(this.bedLevel ?? 0); // the bed is not in `active`, so mute it here
     return this.muted;
   }
 }

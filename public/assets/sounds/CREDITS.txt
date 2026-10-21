@@ -6,5 +6,13 @@ cheer.mp3
   What we did: took the site's mp3 preview (not the original wav), cut 2.1 s
   around the loudest swell, made it mono at 22.05 kHz, faded the ends.
 
+crowd_bed.wav
+  Made from "Stadium Crowd" by stomachache, Freesound.
+  https://freesound.org/s/274516/
+  License: Creative Commons 0 (public domain). No credit needed, given anyway.
+  What we did: took the site's mp3 preview (not the original wav), made it
+  mono at 22.05 kHz, and crossfaded the last second into the first so it loops
+  without a click. 7.19 s long.
+
 impact*.ogg
   Kenney Impact Sounds, CC0. See KENNEY_LICENSE.txt.

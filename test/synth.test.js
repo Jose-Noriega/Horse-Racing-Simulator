@@ -15,7 +15,7 @@ const names = Object.keys(lib);
 const leveled = Object.fromEntries(names.map((name) => [name, setLoudness(lib[name], MIX_DB[name])]));
 
 test("every sound has a level and every level has a sound", () => {
-  assert.deepEqual([...names].sort(), Object.keys(MIX_DB).filter((k) => k !== "step" && k !== "cheer").sort());
+  assert.deepEqual([...names].sort(), Object.keys(MIX_DB).filter((k) => !["step", "cheer", "bed"].includes(k)).sort());
 });
 
 test("no NaN or infinity, sensible length", () => {
