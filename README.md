@@ -18,6 +18,11 @@ serves files.
     npx wrangler login
     npm run deploy     # prints the *.workers.dev url
 
+A push to `main` deploys on its own through `.github/workflows/deploy.yml`.
+It needs two repo secrets: `CLOUDFLARE_API_TOKEN` (use the "Edit Cloudflare
+Workers" token template) and `CLOUDFLARE_ACCOUNT_ID`. Tests run first. A failing
+test blocks the deploy.
+
 ## Play
 
 Click or type. `1`-`8` pick horses (while the Name box is active), `Tab` moves
