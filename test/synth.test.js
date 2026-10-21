@@ -15,7 +15,7 @@ const names = Object.keys(lib);
 const leveled = Object.fromEntries(names.map((name) => [name, setLoudness(lib[name], MIX_DB[name])]));
 
 test("every sound has a level and every level has a sound", () => {
-  assert.deepEqual([...names].sort(), Object.keys(MIX_DB).filter((k) => k !== "step").sort());
+  assert.deepEqual([...names].sort(), Object.keys(MIX_DB).filter((k) => k !== "step" && k !== "cheer").sort());
 });
 
 test("no NaN or infinity, sensible length", () => {
@@ -50,7 +50,7 @@ test("the loudness order is the design: gun and boom > fanfare > money > UI", ()
   // margin is small now. They still have to be on top. Raise it if the mix changes.
   assert.ok(st("gunshot") > st("fanfare") + 1.5, "gun above fanfare");
   assert.ok(st("boom") > st("fanfare") + 1.5, "boom above fanfare");
-  for (const quiet of ["register", "coin", "beepLast", "beep", "ding", "gate", "cheer", "pick", "undo", "click", "tick", "swish"]) {
+  for (const quiet of ["register", "coin", "beepLast", "beep", "ding", "gate", "pick", "undo", "click", "tick", "swish"]) {
     assert.ok(st("fanfare") > st(quiet), `fanfare should be above ${quiet}`);
   }
   assert.ok(st("coin") > st("click") + 6, "coin above click");

@@ -1,0 +1,10 @@
+cheer.mp3
+  Cut from "Crowd Cheering" by SoundsExciting, Freesound, 2016.
+  https://freesound.org/s/365132/
+  License: Creative Commons 0 (public domain). No credit needed, given anyway.
+  https://creativecommons.org/publicdomain/zero/1.0/
+  What we did: took the site's mp3 preview (not the original wav), cut 2.1 s
+  around the loudest swell, made it mono at 22.05 kHz, faded the ends.
+
+impact*.ogg
+  Kenney Impact Sounds, CC0. See KENNEY_LICENSE.txt.

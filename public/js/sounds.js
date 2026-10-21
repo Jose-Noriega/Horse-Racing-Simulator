@@ -81,6 +81,10 @@ export class Sounds {
     for (const [name, samples] of Object.entries(library(MIX.wet))) {
       this.buffers[name] = this.make(setLoudness(samples, MIX_DB[name]));
     }
+    // The crowd is a real recording. Two tries at synthesizing it sounded bad.
+    // If the file won't load there is simply no cheer.
+    const crowd = await loadMono(this.ctx, "cheer.mp3");
+    if (crowd) this.buffers.cheer = this.make(setLoudness(crowd, MIX_DB.cheer));
     await this.buildSteps();
     this.on = true;
   }

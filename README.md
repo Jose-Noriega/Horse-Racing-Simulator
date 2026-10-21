@@ -60,5 +60,5 @@ Design notes are in `BUILD_PLAN.txt`. What's next is in `TASKS.txt`.
 - Safari and ogg: if the hoof recordings don't decode, it falls back to a
   synthesized thud. Only tested in Chromium.
 
-Hoof sounds are Kenney Impact Sounds (CC0). See
-`public/assets/sounds/KENNEY_LICENSE.txt`.
+Hoof sounds are Kenney Impact Sounds (CC0). The crowd cheer is a CC0 recording
+by SoundsExciting on Freesound. See `public/assets/sounds/CREDITS.txt`.

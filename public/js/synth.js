@@ -261,62 +261,6 @@ export function synthHit() {
   );
 }
 
-// Resonant band-pass (RBJ biquad). Picks out one band, like one vowel formant.
-export function bandpass(x, freq, q) {
-  const w = (2 * Math.PI * freq) / RATE;
-  const alpha = Math.sin(w) / (2 * q);
-  const a0 = 1 + alpha;
-  const b0 = alpha / a0;
-  const b2 = -alpha / a0;
-  const a1 = (-2 * Math.cos(w)) / a0;
-  const a2 = (1 - alpha) / a0;
-  const out = new Float32Array(x.length);
-  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
-  for (let i = 0; i < x.length; i++) {
-    const y = b0 * x[i] + b2 * x2 - a1 * y1 - a2 * y2;
-    x2 = x1; x1 = x[i]; y2 = y1; y1 = y;
-    out[i] = y;
-  }
-  return out;
-}
-
-// A crowd cheer. The old one was low-passed noise, which is just a hiss.
-// This is ten buzzy voices at slightly different pitches, each with a wobble and
-// a rising slide, run through the formants of an "ahh" (about 750, 1150 and
-// 2600 Hz). Then a few claps on top. Hack: it is a cartoon crowd, not a real one.
-function cheer() {
-  const dur = 0.85;
-  const rng = seededRng(21);
-  const len = n(dur);
-  const voices = new Float32Array(len);
-  for (let v = 0; v < 10; v++) {
-    const base = 170 + rng() * 150; // each fan has their own pitch
-    const wobble = 4.5 + rng() * 2.5; // vibrato speed, Hz
-    const late = rng() * 0.1; // not everyone starts on the same beat
-    let phase = rng();
-    for (let i = n(late); i < len; i++) {
-      const t = i / RATE;
-      const f = base * (1 + 0.18 * (i / len)) * (1 + 0.012 * Math.sin(2 * Math.PI * wobble * t)); // slides up
-      phase += f / RATE;
-      voices[i] += ((phase % 1) * 2 - 1) * 0.1; // naive saw. buzzy on purpose
-    }
-  }
-  const breath = noise(dur, 0.4, rng).map((v) => v * 0.15);
-  const source = mix(voices, breath);
-  const ahh = mix(bandpass(source, 750, 5), scale(bandpass(source, 1150, 7), 0.7), scale(bandpass(source, 2600, 8), 0.25));
-  const swell = envelope(ahh, (t) => Math.min(1, t / 0.18) * (t > 0.55 ? Math.cos(((t - 0.55) / 0.45) * (Math.PI / 2)) ** 2 : 1));
-
-  // claps. 14 little band-passed bursts, thickest in the middle
-  const claps = new Float32Array(len);
-  for (let c = 0; c < 14; c++) {
-    const at = n(0.1 + (0.35 + 0.3 * (rng() + rng() - 1)) * dur * 1.2);
-    const burst = bandpass(noise(0.012, 1, rng), 1900 + rng() * 800, 1.5).map((v, i) => v * Math.exp((-380 * i) / RATE));
-    const gain = 0.25 + rng() * 0.35;
-    for (let i = 0; i < burst.length && at + i < len; i++) claps[at + i] += burst[i] * gain;
-  }
-  return fadeEdges(mix(swell, scale(claps, 0.8)), 0.01, 0.06);
-}
-
 // Everything the game plays, by name. Raw samples, not leveled. [samples, room?].
 // room is [wet scale, tail seconds]. wet scale multiplies the hoof wet level.
 const RAW = {
@@ -349,7 +293,6 @@ const RAW = {
   beep: [chip({ shape: "tri", f0: 523, dur: 0.12, decay: 8 })],
   beepLast: [mix(chip({ f0: 784, dur: 0.22, decay: 6 }), chip({ shape: "tri", f0: 1568, dur: 0.22, decay: 10, vol: 0.4 }))],
   gunshot: [gunshot(), [1.5, 1.1]],
-  cheer: [cheer()],
   ding: [mix(chip({ shape: "tri", f0: 1046, dur: 0.3, decay: 9 }), chip({ shape: "sine", f0: 2092, dur: 0.3, decay: 14, vol: 0.25 }))],
   fanfare: [
     concat(
