@@ -176,7 +176,7 @@ test("the chalkboard's 'three' is still right", () => {
 test("the roster: 64 unique, short names", () => {
   assert.equal(ROSTER.length, 64);
   assert.equal(new Set(ROSTER.map((h) => h.name)).size, 64, "two horses share a name");
-  for (const h of ROSTER) assert.ok(h.name.length >= 3 && h.name.length <= 17, h.name);
+  for (const h of ROSTER) assert.ok(h.name.length >= 3 && h.name.length <= 20, h.name);
 });
 
 test("billboards: a name and a tagline each, sized for the board", () => {

@@ -10,6 +10,7 @@ import { MAX_PARLAY_LEGS } from "./settings.js";
 import { STATUS } from "./words.js"; // the messages live there so the art can read them
 
 const sameIds = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+const OPENING_POOL_SIZE = 100; // virtual pool used only to initialize tote estimates
 
 export function isParlay(bet) {
   return bet.horseIds.length > 1;
@@ -146,15 +147,17 @@ export function payoutsByPlayer(pool, finishIds, pWin, orderProb) {
   return [...grouped.values()].sort((a, b) => b.amount - a.amount || a.playerNumber - b.playerNumber);
 }
 
-// Live win-bet multiplier. Always a number when possible, even with no bets on
-// this horse yet (a new wager would take the unbacked share, or 1/p_win if empty).
-export function displayedWinMultiplier(pool, horseId, pWin = null, probeWager = 1) {
-  const wager = probeWager > 0 ? probeWager : 1;
+// Estimated win-bet return, combining a probability-weighted opening pool with
+// real wagers so the tote moves continuously from its opening odds.
+export function displayedWinMultiplier(pool, horseId, pWin = null) {
   const onHorse = amountOnWin(pool, horseId);
   const total = totalPool(pool);
+  if (pWin && horseId in pWin) {
+    const chance = Math.max(pWin[horseId], 1e-9);
+    return (OPENING_POOL_SIZE + total) / (OPENING_POOL_SIZE * chance + onHorse);
+  }
   if (onHorse > 0 && total > 0) return total / onHorse;
-  if (total > 0) return (total + wager) / wager;
-  if (pWin && horseId in pWin) return 1 / Math.max(pWin[horseId], 1e-9);
+  if (total > 0) return total + 1;
   return null;
 }
 

@@ -46,7 +46,7 @@ function buildPool() {
   return pool;
 }
 
-test("bets, pool, multipliers match", () => {
+test("bets, pool, and parlay multipliers match", () => {
   const pool = buildPool();
   assert.deepEqual(
     pool.bets.map((b) => ({ n: b.playerNumber, name: b.personName, ids: b.horseIds, amount: b.amount })),
@@ -55,11 +55,26 @@ test("bets, pool, multipliers match", () => {
   close(betting.totalPool(pool), ref.total_pool, "pool");
   for (const h of field) {
     close(betting.amountOnWin(pool, h.id), ref.on_win[h.id], `on win ${h.id}`);
-    close(betting.displayedWinMultiplier(pool, h.id, pWin, 3), ref.win_mult[h.id], `win mult ${h.id}`);
   }
   for (const [k, v] of Object.entries(ref.ticket_mult)) {
     close(betting.displayedTicketMultiplier(pool, k.split(",").map(Number), field, pWin), v, `ticket ${k}`);
   }
+});
+
+test("win odds start at fair odds and move continuously with the tote pool", () => {
+  const pool = betting.newPool();
+  const horseId = field[0].id;
+  const openingOdds = betting.displayedWinMultiplier(pool, horseId, pWin);
+  close(openingOdds, 1 / pWin[horseId], "opening fair odds");
+
+  betting.addBet(pool, 1, "Ann", [horseId], 20);
+  const backedOdds = betting.displayedWinMultiplier(pool, horseId, pWin);
+  assert.ok(backedOdds < openingOdds, "more money on a horse lowers its estimated payout");
+
+  betting.addBet(pool, 2, "Bo", [field[1].id], 20);
+  const laterOdds = betting.displayedWinMultiplier(pool, horseId, pWin);
+  assert.ok(laterOdds > backedOdds, "money on another horse raises its estimated payout");
+  assert.ok(laterOdds < openingOdds, "the opening estimate fades gradually as bets grow");
 });
 
 test("settlement matches, incl. refund when nobody hits", () => {

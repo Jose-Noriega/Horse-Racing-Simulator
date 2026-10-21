@@ -391,14 +391,14 @@ export function drawBettingScreen(g) {
   inkText(ctx, "POOL", -138, 1, 15, "#ff9c2a", { sw: 0 });
   inkText(ctx, `$${shortNum(totalPool(g.pool))}`, 138, 1, 26, bump > 0 ? "#fff3a0" : "#ffb62e", { align: "right", sw: 0 });
   ctx.restore();
-  plainText(ctx, "If this horse wins", 900, 154, 12.5, "#b9a36a", { bold: false });
+  plainText(ctx, "Estimated payout if this horse wins; odds can move", 900, 154, 11.5, "#b9a36a", { bold: false });
 
   const w = parseFloat(g.wagerText);
   const example = Number.isNaN(w) ? 0 : w;
   let py = 176;
   for (const horse of g.field) {
     const onH = amountOnWin(g.pool, horse.id);
-    const odds = displayedWinMultiplier(g.pool, horse.id, g.winProbs, example > 0 ? example : 1);
+    const odds = displayedWinMultiplier(g.pool, horse.id, g.winProbs);
     ctx.beginPath();
     ctx.roundRect(898, py - 2, 336, 38, 8);
     ctx.fillStyle = "#241a35";
