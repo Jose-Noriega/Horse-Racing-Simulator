@@ -51,26 +51,37 @@ def order_probability(horses: list[Horse], ordered_ids: list[int]) -> float:
     return p
 
 
-# Relative speed samples over a horse's own race (start → finish).
-# Different shapes let horses lead then fade, or close from behind.
-_PACE_STYLES: dict[str, list[float]] = {
-    "front": [1.28, 1.18, 1.10, 1.00, 0.92, 0.84, 0.78, 0.72],
-    "closer": [0.72, 0.78, 0.84, 0.92, 1.02, 1.18, 1.32, 1.40],
-    "stalker": [0.90, 0.96, 1.04, 1.10, 1.06, 1.00, 1.16, 1.22],
-    "even": [1.00, 1.04, 0.96, 1.06, 0.94, 1.08, 0.98, 1.10],
-    "duel": [1.16, 1.12, 0.88, 0.94, 1.18, 0.90, 1.14, 1.08],
-}
+# Each horse gets its own random speed curve over its race (1.0 = even pace).
+# Curves are independent, so horses speed up and fade at different moments
+# and pass each other. Final order is untouched: pace_progress is normalized
+# so every horse still hits the line at its simulated finish time.
+PACE_KNOTS = 10  # fewer knots = longer surges. more knots = twitchy jitter
+PACE_SWING = 0.6  # max +/- random wobble at a knot. Higher = more passing.
+PACE_TILT = 2.0  # front-runners (fast early, fade) vs closers (slow early, fast late)
+START_DRAG = 0.25  # everyone breaks a bit slow from the gate
+MAX_KICK = 0.8  # a horse's late surge is random in 0..MAX_KICK, so some close hard
 
 
 def assign_pace_profiles(
     horses: list[Horse], rng: random.Random | None = None
 ) -> None:
-    """Give each horse a variable-speed profile for the animation."""
+    """Give each horse a variable-speed profile for the animation.
+
+    Shape = slow start + random-size kick in the last third + front-runner
+    or closer tilt + wobble.
+    Hack: the shape is cosmetic. pace_progress normalizes it, so the
+    finish order still comes from simulate_race.
+    """
     rng = random.Random() if rng is None else rng
-    styles = list(_PACE_STYLES.keys())
     for horse in horses:
-        base = list(_PACE_STYLES[rng.choice(styles)])
-        horse.pace_speeds = [max(0.45, s + rng.uniform(-0.08, 0.08)) for s in base]
+        kick = rng.uniform(0.0, MAX_KICK)
+        style = rng.uniform(-1.0, 1.0)  # -1 front-runner, +1 closer
+        horse.pace_speeds = []
+        for i in range(PACE_KNOTS):
+            t = i / (PACE_KNOTS - 1)
+            shape = -START_DRAG * (1 - t) ** 3 + kick * t**3 + PACE_TILT * style * (t - 0.5)
+            wobble = rng.uniform(-PACE_SWING, PACE_SWING)
+            horse.pace_speeds.append(max(0.4, 1.0 + shape + wobble))
 
 
 def pace_progress(pace_speeds: list[float], u: float) -> float:

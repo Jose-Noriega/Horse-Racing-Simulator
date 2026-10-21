@@ -37,7 +37,10 @@ TARGET_RACE_SECONDS = 30.0
 
 # Gaussian noise around average_speed when simulating a race.
 # Higher = more upsets / closer to a toss-up field.
-SPEED_SIGMA = 12.0
+SPEED_SIGMA = 10.0
+# Squeeze every horse's average speed toward the roster mean.
+# 1.0 = roster as written. Lower = closer races. Applied at load, so odds match.
+SPEED_COMPRESSION = 0.7
 # Softmax temperature for displayed win / parlay probabilities.
 # Higher = flatter probabilities (favorites less dominant).
 PROB_TEMPERATURE = 10.0
@@ -70,3 +73,18 @@ FONT_SIZE_TITLE = 48
 FONT_SIZE_LARGE = 32
 FONT_SIZE_MEDIUM = 24
 FONT_SIZE_SMALL = 18
+
+# Sound mix. Tweak by ear. 0..1 unless noted.
+MIX = {
+    "master": 0.7,
+    "ui": 0.35,  # clicks, beeps, coins, dings, fanfare
+    "gunshot": 0.85,
+    "boom": 0.8,
+    "steps": 0.85,  # whole field. each hoof gets this / sqrt(number of horses)
+    "steps_swell": 0.35,  # hooves get this much louder from the gate to the line
+    "duck": 0.3,  # hooves drop to this when the gun or a boom goes off...
+    "duck_secs": 1.2,  # ...and climb back over this long
+    "pan_width": 0.7,  # 1.0 = hard left/right
+    "wet": 0.3,  # reverb level on hooves. gun and boom are a bit wetter
+    "tail_secs": 0.45,  # hoof reverb length. gun and boom run longer
+}

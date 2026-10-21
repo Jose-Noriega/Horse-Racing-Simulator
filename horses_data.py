@@ -83,10 +83,12 @@ def _build_roster() -> dict[int, HorseBlueprint]:
         raise ValueError(
             f"Expected {settings.TOTAL_HORSES} horses, found {len(_ROSTER_RAW)}"
         )
+    mean = sum(speed for _, speed in _ROSTER_RAW) / len(_ROSTER_RAW)
+    k = settings.SPEED_COMPRESSION
     roster: dict[int, HorseBlueprint] = {}
     for horse_id, (name, speed) in enumerate(_ROSTER_RAW):
         roster[horse_id] = HorseBlueprint(
-            id=horse_id, name=name, average_speed=speed
+            id=horse_id, name=name, average_speed=mean + (speed - mean) * k
         )
     return roster
 

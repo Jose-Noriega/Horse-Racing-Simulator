@@ -1,5 +1,7 @@
 """Entry point for the Horse Racing Simulator."""
 
+import sys
+
 import pygame
 
 from game import Game
@@ -8,7 +10,7 @@ from game import Game
 def main() -> None:
     pygame.init()
     try:
-        game = Game()
+        game = Game(secret="--secret" in sys.argv)
         game.run()
     finally:
         pygame.quit()

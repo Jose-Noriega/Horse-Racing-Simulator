@@ -27,6 +27,20 @@ def lane_length(lane_index: float) -> float:
     return 2 * settings.TRACK_STRAIGHT + 2 * math.pi * r
 
 
+def start_progress(lane_index: int) -> float:
+    """
+    Lap fraction where this lane starts so every horse runs the inner lane's
+    distance. Outer lanes start further around the oval (a stagger).
+    """
+    return 1.0 - lane_length(0) / lane_length(lane_index)
+
+
+def lane_progress(lane_index: int, race_fraction: float) -> float:
+    """Lap fraction on this lane after race_fraction (0..1) of the race."""
+    p0 = start_progress(lane_index)
+    return p0 + race_fraction * (1.0 - p0)
+
+
 def point_on_radius(radius: float, progress: float) -> tuple[float, float, float]:
     """
     Position and heading (radians, pygame coords) for progress in [0, 1].
