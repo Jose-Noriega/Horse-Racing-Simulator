@@ -1,0 +1,109 @@
+================================================================================
+HORSE RACING SIMULATOR — TASKS
+================================================================================
+Last updated: 2026-10-04
+Purpose: Track what to build next. Check items off as we complete them.
+Refer to BUILD_PLAN.txt for the full design and goals.
+
+Design note (updated):
+  - 64 horses with set average speeds
+  - 8 races per session; each race fields 8 pre-chosen horses
+  - Race card is set before game load
+  - Before each race: betting window (names, wagers, live payouts)
+
+
+--------------------------------------------------------------------------------
+COMPLETED SO FAR
+--------------------------------------------------------------------------------
+
+SETUP
+  [x] Create requirements.txt with pygame listed
+  [x] Install project dependencies
+  [x] Create settings.py with window size, FPS, basic colors
+  [x] settings.py: TOTAL_HORSES=64, HORSES_PER_RACE=8, RACES_PER_SESSION=8
+
+SKELETON / WINDOW
+  [x] Create main.py that initializes pygame and starts the game
+  [x] Expand game.py into a Game class with a working main loop
+  [x] Handle quit cleanly (window X and Esc)
+  [x] Draw a simple blank (or title) screen so we know the loop works
+
+STATE MACHINE
+  [x] Define screen states: MENU, BETTING, RACE, RESULTS, SUMMARY
+  [x] Show the current state name on screen
+  [x] Rename INPUT → BETTING and align with the updated build plan
+  [x] Show race number on BETTING (e.g. Race 1 of 8)
+
+HORSE ROSTER DATA
+  [x] Create horse.py with Horse class (id, name, color, average_speed, position)
+  [x] Create horses_data.py with all 64 horses and set average speeds
+  [x] Load / reference roster from game setup
+
+RACE CARD (BEFORE GAME LOAD)
+  [x] Create race_card.py defining 8 races × 8 horse ids each
+  [x] Validate card entries against the 64-horse roster
+  [x] Game reads current race field from the card (no live drafting)
+
+RACE MATH
+  [x] Create race.py
+  [x] Gaussian sampling from the 8 starters' average speeds → finishing order
+  [x] Test race math from the console (`python race.py`)
+
+BETTING (CORE + WINDOW)
+  [x] Create betting.py (bettors, wagers, pool, payout helpers)
+  [x] BETTING screen: enter person name, pick horse, place wager
+  [x] Show live payout info per horse based on current wagers
+  [x] Start Race moves BETTING → RACE
+
+UI / FLOW POLISH
+  [x] Polish MENU screen UI for starting the race card
+  [x] Animate the 8 horses on the track (~1.25 min feel; Enter/click to skip)
+  [x] RESULTS polish (finish order cards + settlements panel)
+  [x] End-of-card SUMMARY screen (session net standings)
+  [x] Mouse/buttons for betting (and menu / results / summary)
+
+
+--------------------------------------------------------------------------------
+OPTIONAL LATER
+--------------------------------------------------------------------------------
+  [ ] Sprites / sound effects
+  [ ] Countdown before race
+  [ ] Tune TARGET_RACE_SECONDS / SPEED_SIGMA feel
+  [ ] Editable race card UI (instead of editing race_card.py)
+
+
+--------------------------------------------------------------------------------
+HOW TO TRY IT NOW
+--------------------------------------------------------------------------------
+  python main.py
+
+  MENU: click "Start Race Card" or press Enter
+  BETTING:
+    click horse (or 1-8), click/type name & wager, Place Bet / Enter
+    Start Race button or F5
+  RACE: horses animate (~75s for favorite; Enter/click skips to finish)
+  RESULTS: Next Race / View Card Summary
+  SUMMARY: session net standings → Back to Menu
+
+
+--------------------------------------------------------------------------------
+NOTES
+--------------------------------------------------------------------------------
+- Edit horses_data.py and race_card.py before load to change the stable / card.
+- Update this file as tasks are finished or priorities change.
+
+--------------------------------------------------------------------------------
+THIS SESSION (implemented)
+--------------------------------------------------------------------------------
+  [x] Show win probability from speed (not average speed); increase upset variance
+  [x] Player number + name; combine extra wagers; pay out by player number
+  [x] Same-race parlays up to 3 legs (finish order); pool-zero-sum settlement
+  [x] Clear horse picks after a bet is placed
+  [x] Results/summary list payouts only (no money-lost lines)
+
+Parlay notes:
+  - Click 1 horse = win bet; click 2–3 in finish order = parlay (order matters)
+  - Parlay tickets get a larger claim (1.25x / 1.5x over exact-order probability)
+    so they pay more per dollar than a win bet when they hit
+  - Parlay money on a horse as 1st leg moves that horse's live win multiplier
+  - Entire race pool is paid to hitting tickets (or returned if none hit)

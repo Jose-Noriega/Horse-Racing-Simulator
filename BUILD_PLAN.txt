@@ -1,0 +1,314 @@
+================================================================================
+HORSE RACING SIMULATOR — BUILD PLAN
+================================================================================
+Last updated: 2026-10-04
+Status: Planning updated — code skeleton exists; design below is the source of truth
+
+
+--------------------------------------------------------------------------------
+1. SYNOPSIS / GOAL
+--------------------------------------------------------------------------------
+Build a PyGame horse racing party game with a stable of 64 horses. Each horse has
+a set average speed. A full session runs 8 races. Every race fields exactly 8
+horses chosen from that roster.
+
+Before the game loads (configured in data / settings ahead of time), the operator
+assigns which 8 horses run in each of the 8 races. At runtime the player does not
+pick the field — they work from the pre-set race card.
+
+While waiting for a race to start, there is a betting window where the operator
+can:
+  - Enter people's names
+  - Place their bets on horses in the upcoming race
+  - See live payout information for each horse based on the wagers already in
+
+Race outcomes use each horse's average speed plus Gaussian (normal) noise so
+favorites (faster average speed) usually do better, but upsets remain possible.
+The race is animated on a track (~1.25 minutes), then results and bet payouts
+are shown before moving on to the next race on the card.
+
+Core fantasy: pre-set a day of racing, take names and wagers between races,
+watch the field run, and settle payouts.
+
+
+--------------------------------------------------------------------------------
+2. HIGH-LEVEL FEATURES (V1)
+--------------------------------------------------------------------------------
+[ ] Roster of 64 horses, each with a name and set average speed
+[ ] Pre-configured race card: 8 races × 8 horses each (set before game load)
+[ ] Title / start screen
+[ ] Betting window before each race (names + wagers + live payout display)
+[ ] Race simulation using average speeds + Gaussian noise
+[ ] Animated race view (8 lanes, ~1.25 minute race feel)
+[ ] Results screen (finish order 1st–8th + settle / show payouts)
+[ ] Advance through all 8 races on the card
+[ ] Quit cleanly
+
+
+--------------------------------------------------------------------------------
+3. SUGGESTED PROJECT STRUCTURE
+--------------------------------------------------------------------------------
+Keep the first working version simple. Prefer a small number of clear modules
+over a large architecture. Suggested layout:
+
+  Horse Racing Simulator/
+  │
+  ├── BUILD_PLAN.txt          ← this file (living design doc)
+  ├── TASKS.txt               ← checklist of what to build next
+  ├── README.md               ← how to install/run (later)
+  ├── requirements.txt        ← pygame, etc.
+  ├── main.py                 ← entry point: create window, run game loop
+  ├── settings.py             ← window, FPS, track layout, timing constants
+  ├── horses_data.py          ← 64-horse roster (names + average speeds)
+  ├── race_card.py            ← pre-set 8 races × 8 horse IDs (before load)
+  ├── game.py                 ← Game class: screens, state machine, main loop
+  ├── horse.py                ← Horse model (id, name, avg_speed, race position)
+  ├── race.py                 ← race math: speeds + Gaussians → finish order/times
+  ├── betting.py              ← bettors, wagers, pool, payout calculations
+  ├── ui.py                   ← menus, betting window, track, results
+  └── assets/                 ← optional images/sounds later
+      ├── horses/
+      └── sounds/
+
+Notes:
+  - Roster and race card should be easy to edit without digging through game logic.
+  - Early prototype may merge small modules; split when files grow.
+
+
+--------------------------------------------------------------------------------
+4. MODULE RESPONSIBILITIES
+--------------------------------------------------------------------------------
+main.py
+  - Initialize pygame
+  - Create the Game instance
+  - Call game.run()
+  - Clean shutdown
+
+settings.py
+  - SCREEN_WIDTH, SCREEN_HEIGHT, FPS, TITLE
+  - HORSES_PER_RACE = 8
+  - RACES_PER_SESSION = 8
+  - TOTAL_HORSES = 64
+  - Track layout (lane height, finish line x, start x)
+  - Target race duration (~1.25 minutes) helpers
+  - Colors, font sizes
+
+horses_data.py
+  - Define all 64 horses: unique id, name, average_speed
+  - Single source of truth for the stable
+
+race_card.py
+  - Pre-set lineup for races 1–8 (each entry = 8 horse ids from the roster)
+  - Edited before game load; game reads this at startup
+  - Validate: each race has 8 distinct valid horse ids
+
+horse.py
+  - Horse class fields, e.g.:
+      id, name, color (display), average_speed
+      lane_y, x (during race)
+      sampled_speed / finish_time
+      finished flag / place
+
+race.py  (IMPORTANT — core math)
+  - Given 8 horses (with average speeds), sample race performance via Gaussians
+  - Produce finishing order 1st–8th and times/pace for animation
+  - Keep logic testable without the GUI
+
+betting.py
+  - Bettor records: person name + horse + wager amount
+  - Track total pool and amount bet on each horse
+  - Compute and expose payout info per horse (based on current wagers)
+  - After the race, compute what each person wins/loses for display
+
+game.py
+  - Own screen/state: MENU → BETTING → RACE → RESULTS → (next race or done)
+  - Hold current race index (1–8), active field, bets, latest RaceResult
+  - Handle events; update / draw per state
+
+ui.py
+  - MENU, BETTING window, track/race view, RESULTS
+  - Betting UI: add person name, choose horse, enter wager
+  - Live payout panel derived from current wagers
+  - Buttons: Start Race, Next Race, Quit, etc.
+
+
+--------------------------------------------------------------------------------
+5. GAME FLOW / STATE MACHINE
+--------------------------------------------------------------------------------
+Suggested screens (states):
+
+  1. MENU
+       - Show title + short instructions (64-horse stable, 8-race card)
+       - Button: "Start Card" / begin Race 1 betting
+
+  2. BETTING  (waiting window before the race starts)
+       - Show current race number (e.g. Race 3 of 8)
+       - Show the 8 horses in this race (name + average speed / implied strength)
+       - Enter people's names and place bets on those horses
+       - Live panel: payout info per horse based on wagers already placed
+       - Button: "Start Race" when ready (bets can be zero for testing)
+
+  3. COUNTDOWN (optional polish)
+       - 3…2…1…Go
+
+  4. RACE
+       - Simulation computed from average speeds + Gaussian noise
+       - Animate 8 horses along the track (~1.25 minute feel)
+       - When finished → RESULTS
+
+  5. RESULTS
+       - Finishing order 1st–8th
+       - Show bet settlements / payouts for this race
+       - Button: "Next Race" → back to BETTING for the next card entry
+         (or "Finish" / summary after race 8)
+
+Skeleton note:
+  - Existing code stubs used MENU / INPUT / RACE / RESULTS.
+  - INPUT should be replaced conceptually by BETTING; state names in code should
+    be updated when coding resumes to match this plan.
+
+
+--------------------------------------------------------------------------------
+6. ROSTER, SPEEDS & GAUSSIAN DESIGN (PLANNING NOTES)
+--------------------------------------------------------------------------------
+Roster:
+  - 64 horses, each with a fixed average_speed (editable in horses_data.py).
+  - Faster average_speed ⇒ stronger favorite when that horse is in a race.
+
+Race card:
+  - 8 races, each listing 8 horse ids.
+  - Configured before load in race_card.py (or similar data file).
+  - Runtime only reads the card; it does not randomly draft the field (unless
+    we add an optional helper later to generate a card).
+
+Per-race simulation:
+  - For each of the 8 starters, sample effective speed (or finish time) from a
+    Gaussian centered on that horse's average_speed (shared or tuned sigma).
+  - Sort to get finishing order; use sampled values to drive animation pace.
+  - Ties: break randomly so every race has a clear order.
+
+Win "probabilities" are no longer typed in by the player. Implied chances come
+from relative average speeds (+ noise). Payout display in the betting window is
+driven by the wager pool, not by manually entered win probabilities.
+
+
+--------------------------------------------------------------------------------
+7. BETTING & PAYOUT WINDOW (PLANNING NOTES)
+--------------------------------------------------------------------------------
+While in BETTING state for the upcoming race:
+
+  Inputs
+    - Person name
+    - Horse selection (one of the 8 in the field)
+    - Wager amount
+
+  Display
+    - List of current bets (name → horse → amount)
+    - Per-horse totals wagered
+    - Payout information for each horse based on people's wagers
+      (exact formula TBD while building — e.g. pool share / proportional odds)
+
+  Rules to decide while coding
+    - Minimum / maximum wager
+    - One bet vs many bets per person
+    - What happens with empty pool (no bets) when starting the race
+    - Whether payouts are shown as "if this horse wins, $X returns $Y"
+
+
+--------------------------------------------------------------------------------
+8. RACE ANIMATION PLAN
+--------------------------------------------------------------------------------
+Visual layout (simple V1):
+  - Horizontal track with 8 stacked lanes
+  - Horse as colored shape or simple sprite + name/number
+  - Finish line near the right edge
+  - Race number indicator (e.g. Race 2/8)
+
+Motion:
+  - race.py assigns finish_time / pace from sampled speeds
+  - Animate so the race feels ~1.25 minutes
+  - Stop at finish line; then RESULTS
+
+
+--------------------------------------------------------------------------------
+9. INPUT / CONTROLS (V1)
+--------------------------------------------------------------------------------
+  - Mouse: betting fields, horse pick, buttons
+  - Keyboard: type names and wager amounts; Enter to add bet; Esc to quit/back
+  - During stub testing only: temporary keys to jump states (remove later)
+
+
+--------------------------------------------------------------------------------
+10. IMPLEMENTATION ORDER
+--------------------------------------------------------------------------------
+Phase 0 — Planning
+  [x] Create BUILD_PLAN.txt
+  [x] Create TASKS.txt
+  [x] Update plan for 64 horses / 8-race card / betting window
+
+Phase 1 — Skeleton (done / adjust next)
+  [x] requirements.txt + pygame
+  [x] settings.py, main.py, game.py loop
+  [x] Early state stubs (update names: INPUT → BETTING when coding resumes)
+
+Phase 2 — Data
+  [ ] 64-horse roster with average speeds
+  [ ] Pre-set race card (8×8)
+  [ ] Horse model wired to roster ids
+
+Phase 3 — Race Math
+  [ ] Gaussian sampling from average speeds → finish order
+  [ ] Console test without UI
+
+Phase 4 — Betting
+  [ ] betting.py pool + payout helpers
+  [ ] BETTING screen UI (names, wagers, live payouts)
+
+Phase 5 — Race + Results + Card progression
+  [ ] Animate race (~1.25 min feel)
+  [ ] Results + settlements
+  [ ] Advance through all 8 races
+
+
+--------------------------------------------------------------------------------
+11. TECHNICAL CONSTRAINTS / CONVENTIONS
+--------------------------------------------------------------------------------
+  - Language: Python 3
+  - Library: pygame (primary)
+  - TOTAL_HORSES = 64; HORSES_PER_RACE = 8; RACES_PER_SESSION = 8
+  - Race fields are pre-set before load (race_card data), not chosen live
+  - Prefer readable names and small functions
+  - Keep simulation (race.py) and betting math (betting.py) testable without GUI
+  - Betting is for a local party / simulation experience (not real-money gambling
+    integration)
+
+
+--------------------------------------------------------------------------------
+12. OPEN QUESTIONS (RESOLVE WHILE BUILDING)
+--------------------------------------------------------------------------------
+  - Exact payout formula (pari-mutuel pool vs fixed odds from speeds)?
+  - Can the same horse appear in more than one race on the card?
+  - Units for average_speed (abstract points vs distance/time)?
+  - Default wager currency label (e.g. chips / dollars)?
+  - Window size / fullscreen?
+  - Seeded RNG for reproducible demo cards?
+  - Sound effects for start / finish / payout?
+
+
+--------------------------------------------------------------------------------
+13. SUCCESS CRITERIA FOR V1
+--------------------------------------------------------------------------------
+An operator can:
+  1. Define (before load) 64 horses with average speeds and an 8-race card
+  2. Launch the game and open the betting window for Race 1
+  3. Enter people's names and place bets; see payout info update from wagers
+  4. Start the race and watch 8 horses animate
+  5. See finish order and bet settlements
+  6. Continue through all 8 races on the card
+
+When those work, V1 is done.
+
+
+================================================================================
+END OF BUILD PLAN
+================================================================================
