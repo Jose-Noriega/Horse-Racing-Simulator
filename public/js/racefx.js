@@ -11,13 +11,15 @@ import { drawHorse, drawPortrait } from "./characters.js";
 import { drawScenery, drawGags, drawSky } from "./scenery.js";
 import { drawCrowd } from "./crowd.js";
 import { stridePhase } from "./sprites.js";
+import {
+  ANNOUNCER_GAP, BOOMS, countdownLine, explodeLine, lastPlaceLine, leadLine, lineupLine, midLine, photoLine, startLine, winnerLine,
+} from "./words.js";
 
 const W = settings.SCREEN_WIDTH;
 const H = settings.SCREEN_HEIGHT;
 const N = settings.HORSES_PER_RACE;
 const RACES = settings.RACES_PER_SESSION;
 const CONFETTI = [PAL.red, PAL.gold, PAL.blue, PAL.green, PAL.pink, "#ffffff", PAL.orange];
-const BOOMS = ["BOOM!", "KA-BLAM!", "POW!", "KABOOM!", "OOPS!"];
 
 const pickOf = (list) => list[Math.floor(Math.random() * list.length)];
 
@@ -29,6 +31,8 @@ function freshRace() {
     lastSayAt: -9,
     prio: 0,
     nextMid: 0,
+    midDone: false, // the one mid-race line has been said
+    later: null, // a line waiting its turn: { at, text }
     leader: null,
     finishedCount: 0,
     counted: false,
@@ -54,7 +58,8 @@ function raceArt(g) {
 function say(g, r, text, secs = 2.8, prio = 1) {
   const now = g.time;
   if (now < r.sayUntil && prio < r.prio) return;
-  if (now - r.lastSayAt < 1.2 && prio < 3) return;
+  // Big moments (3) and the setup moment (2) always speak. The rest keep a gap, so he stays rare.
+  if (prio < 2 && now - r.lastSayAt < ANNOUNCER_GAP) return;
   r.say = text;
   r.sayUntil = now + secs;
   r.prio = prio;
@@ -84,19 +89,31 @@ function confettiRain(r, count) {
 
 const nameOf = (g, id) => g.field.find((h) => h.id === id)?.name ?? "somebody";
 
+// The horse with the best and the worst chance in this field.
+function oddsEnds(g) {
+  const ids = g.field.map((h) => h.id);
+  const p = (id) => g.winProbs[id] ?? 0;
+  return {
+    favId: ids.reduce((a, b) => (p(a) >= p(b) ? a : b)),
+    longId: ids.reduce((a, b) => (p(a) <= p(b) ? a : b)),
+  };
+}
+
 // Called every frame from fx.updateArt for every screen that is not betting.
 export function updateRaceFx(g, dt) {
   const r = raceArt(g);
+  const mem = (g.art.speechMem ??= {}); // no-repeat memory lasts the whole card
   const now = g.time;
   if (g.state !== r.lastState) {
     const showerUntil = r.showerUntil;
     if (g.state === "setup") {
       const keep = r.confetti;
       Object.assign(r, freshRace(), { confetti: keep });
-      say(g, r, pickOf([`Race ${g.raceIndex + 1}! The horses are lining up.`, "Everyone stay calm. The horses are calm. You are not.", "All bets are final. Probably."]), 3.6, 1);
+      say(g, r, lineupLine({ raceIndex: g.raceIndex }), 3.6, 1);
     } else if (g.state === "race") {
-      say(g, r, pickOf(["AND THEY'RE OFF!", "THEY'RE RUNNING! WITH THEIR LEGS!"]), 2.4, 3);
-      r.nextMid = now + 5;
+      const start = startLine({ raceIndex: g.raceIndex });
+      if (start) say(g, r, start, 2.4, 3);
+      r.nextMid = now + 10 + Math.random() * 8;
     } else if (g.state === "results" && r.winnerId !== null) {
       r.showerUntil = now + 1.4;
     } else {
@@ -106,7 +123,9 @@ export function updateRaceFx(g, dt) {
   }
   if (g.state === "setup" && g.countdown !== null && !r.counted) {
     r.counted = true;
-    say(g, r, "Here we go...", 2.4, 2);
+    const { longId } = oddsEnds(g);
+    const line = countdownLine({ poolEmpty: g.pool.bets.length === 0, longshotName: nameOf(g, longId) });
+    if (line) say(g, r, line, 3.2, 2);
   }
 
   if (g.state === "race") {
@@ -114,7 +133,10 @@ export function updateRaceFx(g, dt) {
     const lead = g.passOrder[0];
     const lh = g.field.find((h) => h.id === lead);
     if (lead !== undefined && lead !== r.leader && lh && lh.progress > 0.12 && !lh.finished) {
-      if (r.leader !== null) say(g, r, pickOf([`${nameOf(g, lead)} takes the lead!`, `${nameOf(g, lead)} pulls ahead!`, `Here comes ${nameOf(g, lead)}!`]), 2.2, 1);
+      if (r.leader !== null) {
+        const line = leadLine({ leaderName: nameOf(g, lead), leaderIsLongshot: lead === oddsEnds(g).longId });
+        if (line) say(g, r, line, 2.6, 1);
+      }
       r.leader = lead;
     }
     // new finishers
@@ -126,27 +148,33 @@ export function updateRaceFx(g, dt) {
         r.winnerAt = now;
         r.zoomAt = now;
         confettiBurst(r, 410, win.y, 110);
-        say(g, r, `${win.name} WINS!`, 3.2, 3);
+        const pct = (100 * (g.winProbs[win.id] ?? 0)).toFixed(1);
+        say(g, r, winnerLine({ name: win.name, pct, isLongshot: win.id === oddsEnds(g).longId }), 2.4, 3);
       }
       if (r.finishedCount < 2 && done.length >= 2 && g.raceResult && !g.exploded.size) {
         const [a, b] = g.raceResult.ordered;
         if (g.visualFinishTime(b) - g.visualFinishTime(a) < 0.4) {
           r.photoAt = now;
           r.flashAt = now;
-          say(g, r, "PHOTO FINISH! Nobody knows anything!", 3.2, 3);
+          r.later = { at: now + 2.4, text: photoLine(Math.random, mem), secs: 3.2 }; // after the winner has been named
         }
       }
-      if (done.length === g.field.length - g.exploded.size && done.length > 1) {
-        say(g, r, "And everybody else is also here. Great.", 2.6, 1);
+      // everybody is in. If the favorite came last, say so
+      const { favId } = oddsEnds(g);
+      const fav = g.field.find((h) => h.id === favId);
+      if (done.length === g.field.length && fav && fav.place === g.field.length) {
+        say(g, r, lastPlaceLine({ favName: fav.name }), 3, 1);
       }
       r.finishedCount = done.length;
     }
     // explosions
+    let said = false;
     for (const id of g.exploded) {
       if (!r.explodedSeen.has(id)) {
         r.explodedSeen.add(id);
         r.explodedAt.set(id, now);
-        say(g, r, pickOf(["OH NO.", "Well. That's not in the brochure.", "Is that... allowed?", "Someone call the horse doctor!"]), 2.8, 3);
+        if (!said) say(g, r, explodeLine({ name: nameOf(g, id) }, Math.random, mem), 3, 3);
+        said = true; // four horses can blow up in one frame. one line
       }
     }
     for (const b of g.blasts) {
@@ -157,10 +185,17 @@ export function updateRaceFx(g, dt) {
     }
     r.booms = r.booms.filter((b) => now - b.at < 1.3);
     // flavor between events
-    if (now > r.nextMid && now > r.sayUntil && !g.raceFinished) {
+    // at most one flavor line a race, and only if nothing else is being said
+    if (!r.midDone && now > r.nextMid && now > r.sayUntil && !g.raceFinished) {
       const last = g.passOrder[g.passOrder.length - 1];
-      say(g, r, pickOf(["THAT'S A LOT OF HORSE", "Neck and neck! Mostly neck.", `Somebody check on ${nameOf(g, last)}.`, `${nameOf(g, last)} is in last. Bold strategy.`, "Hooves everywhere!", "I've lost track. Who's winning?"]), 3, 1);
-      r.nextMid = now + 5 + Math.random() * 3;
+      const { favId } = oddsEnds(g);
+      const line = midLine({ lastName: nameOf(g, last), favName: nameOf(g, favId), favIsLast: last === favId }, Math.random, mem);
+      say(g, r, line, 3.2, 1);
+      r.midDone = true;
+    }
+    if (r.later && now >= r.later.at) {
+      say(g, r, r.later.text, r.later.secs, 3);
+      r.later = null;
     }
   }
 
