@@ -14,15 +14,26 @@ RACES_PER_SESSION = 8
 # Back-compat alias used by track layout
 NUM_HORSES = HORSES_PER_RACE
 
-# Track layout (used once animation is wired up)
+# Track layout (straight-track leftovers still used for menu art)
 TRACK_MARGIN_TOP = 80
 TRACK_MARGIN_BOTTOM = 40
 TRACK_START_X = 80
 TRACK_FINISH_X = SCREEN_WIDTH - 120
 LANE_HEIGHT = (SCREEN_HEIGHT - TRACK_MARGIN_TOP - TRACK_MARGIN_BOTTOM) // NUM_HORSES
 
-# Race feel (~1.25 minutes once animation is tuned)
-TARGET_RACE_SECONDS = 75.0
+# Oval (stadium) track — one lap, counterclockwise
+TRACK_CENTER_X = SCREEN_WIDTH // 2
+TRACK_CENTER_Y = 400
+TRACK_STRAIGHT = 460
+TRACK_INNER_RADIUS = 118
+TRACK_LANE_WIDTH = 18
+DIRT = (166, 124, 72)
+DIRT_DARK = (140, 102, 58)
+INFIELD = (46, 92, 46)
+RAIL = (230, 230, 230)
+
+# Race feel (~.5 minutes once animation is tuned)
+TARGET_RACE_SECONDS = 30.0
 
 # Gaussian noise around average_speed when simulating a race.
 # Higher = more upsets / closer to a toss-up field.

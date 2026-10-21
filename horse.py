@@ -18,6 +18,10 @@ class Horse:
     lane_index: int = 0
     lane_y: float = 0.0
     x: float = 0.0
+    y: float = 0.0
+    heading: float = 0.0
+    progress: float = 0.0
+    pace_speeds: list[float] = field(default_factory=list)
     sampled_speed: float = 0.0
     finish_time: float = 0.0
     finished: bool = False
@@ -26,6 +30,9 @@ class Horse:
     def reset_race_state(self) -> None:
         # Keep lane_index / lane_y — those are field assignment, not race outcome.
         self.x = 0.0
+        self.y = 0.0
+        self.heading = 0.0
+        self.progress = 0.0
         self.sampled_speed = 0.0
         self.finish_time = 0.0
         self.finished = False

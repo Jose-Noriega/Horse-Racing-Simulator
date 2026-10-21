@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from enum import Enum, auto
 
 import pygame
@@ -10,8 +11,16 @@ import settings
 from betting import BettingPool, format_player
 from horse import Horse, make_horse
 from horses_data import get_horse
-from race import RaceResult, order_probability, simulate_race, win_probabilities
+from race import (
+    RaceResult,
+    assign_pace_profiles,
+    order_probability,
+    pace_progress,
+    simulate_race,
+    win_probabilities,
+)
 from race_card import get_race_field_ids
+from track import draw_oval_track, point_on_lane
 from ui import Button, TextBox
 
 
@@ -66,7 +75,7 @@ class Game:
         self.race_finished = False
         self.race_hold_timer = 0.0
         self.settlements_applied = False
-        self.HORSE_RADIUS = 14
+        self.HORSE_RADIUS = 10
 
         self.title_font = pygame.font.Font(None, settings.FONT_SIZE_TITLE)
         self.large_font = pygame.font.Font(None, settings.FONT_SIZE_LARGE)
@@ -77,7 +86,8 @@ class Game:
         self.btn_start_card = Button(pygame.Rect(0, 0, 260, 52), "Start Race Card")
         self.btn_place_bet = Button(pygame.Rect(520, 248, 150, 40), "Place Bet")
         self.btn_clear_picks = Button(pygame.Rect(680, 248, 150, 40), "Clear Picks")
-        self.btn_start_race = Button(pygame.Rect(520, 296, 310, 40), "Start Race")
+        self.btn_undo_bet = Button(pygame.Rect(520, 344, 150, 36), "Undo Bet")
+        self.btn_start_race = Button(pygame.Rect(680, 344, 150, 36), "Start Race")
         self.btn_next = Button(pygame.Rect(0, 0, 220, 44), "Next Race")
         self.btn_summary_menu = Button(pygame.Rect(0, 0, 240, 48), "Back to Menu")
 
@@ -191,6 +201,9 @@ class Game:
                 self.selected_lanes = []
                 self.status_message = "Picks cleared."
                 return
+            if self.btn_undo_bet.hit(pos):
+                self._undo_bet()
+                return
             if self.btn_start_race.hit(pos):
                 self._start_race()
                 return
@@ -235,6 +248,9 @@ class Game:
     def _handle_betting_key(self, event: pygame.event.Event) -> None:
         if event.key == pygame.K_F5:
             self._start_race()
+            return
+        if event.key == pygame.K_z and (pygame.key.get_mods() & pygame.KMOD_CTRL):
+            self._undo_bet()
             return
 
         if event.key == pygame.K_TAB:
@@ -346,6 +362,12 @@ class Game:
         self.status_message = f"{kind} {who}: {label}  ${bet.amount:.2f} total"
         self.selected_lanes = []
 
+    def _undo_bet(self) -> None:
+        if self.pool.undo_last():
+            self.status_message = "Last wager undone."
+        else:
+            self.status_message = "Nothing to undo."
+
     def _start_race(self) -> None:
         if not self.field:
             self._load_current_field()
@@ -353,16 +375,14 @@ class Game:
         self.race_result = simulate_race(self.field)
         winner_time = self.race_result.ordered_horses[0].finish_time
         self.race_time_scale = settings.TARGET_RACE_SECONDS / max(winner_time, 0.001)
+        assign_pace_profiles(self.field)
 
         for i, horse in enumerate(self.field):
             horse.lane_index = i
-            horse.x = float(settings.TRACK_START_X)
+            horse.progress = 0.0
             horse.finished = False
-            horse.lane_y = (
-                settings.TRACK_MARGIN_TOP
-                + i * settings.LANE_HEIGHT
-                + settings.LANE_HEIGHT / 2
-            )
+            x, y, heading = point_on_lane(i, 0.0)
+            horse.x, horse.y, horse.heading = x, y, heading
 
         self.race_elapsed = 0.0
         self.race_finished = False
@@ -376,8 +396,10 @@ class Game:
 
     def _snap_race_to_finish(self) -> None:
         for horse in self.field:
-            horse.x = float(settings.TRACK_FINISH_X)
+            horse.progress = 1.0
             horse.finished = True
+            x, y, heading = point_on_lane(horse.lane_index, 1.0)
+            horse.x, horse.y, horse.heading = x, y, heading
         self.race_finished = True
         self.race_hold_timer = 0.0
         if self.race_result:
@@ -417,20 +439,21 @@ class Game:
 
         if not self.race_finished:
             self.race_elapsed += dt
-            track_span = float(settings.TRACK_FINISH_X - settings.TRACK_START_X)
             all_done = True
             for horse in self.field:
                 visual_t = self._visual_finish_time(horse)
                 if visual_t <= 0:
-                    progress = 1.0
+                    u = 1.0
                 else:
-                    progress = min(1.0, self.race_elapsed / visual_t)
-                horse.x = settings.TRACK_START_X + progress * track_span
-                if progress >= 1.0:
+                    u = min(1.0, self.race_elapsed / visual_t)
+                horse.progress = pace_progress(horse.pace_speeds, u)
+                if horse.progress >= 1.0:
+                    horse.progress = 1.0
                     horse.finished = True
-                    horse.x = float(settings.TRACK_FINISH_X)
                 else:
                     all_done = False
+                x, y, heading = point_on_lane(horse.lane_index, horse.progress)
+                horse.x, horse.y, horse.heading = x, y, heading
             if all_done:
                 self.race_finished = True
                 self.race_hold_timer = 0.0
@@ -563,7 +586,7 @@ class Game:
             y += 54
 
         # Bet form panel
-        pygame.draw.rect(self.screen, settings.PANEL, (500, 70, 360, 280), border_radius=8)
+        pygame.draw.rect(self.screen, settings.PANEL, (500, 70, 360, 310), border_radius=8)
         self.screen.blit(
             self.medium_font.render("Place a bet", True, settings.WHITE),
             (520, 80),
@@ -626,13 +649,15 @@ class Game:
                 )
         self._draw_button(self.btn_place_bet)
         self._draw_button(self.btn_clear_picks)
+        self.btn_undo_bet.enabled = bool(self.pool.undo_stack)
+        self._draw_button(self.btn_undo_bet)
         self._draw_button(self.btn_start_race)
 
         self.screen.blit(
-            self.medium_font.render("Bets this race", True, settings.WHITE),
-            (520, 352),
+            self.medium_font.render("Bets this race  (Ctrl+Z undo)", True, settings.WHITE),
+            (520, 392),
         )
-        bet_y = 380
+        bet_y = 418
         if not self.pool.bets:
             self.screen.blit(
                 self.small_font.render("(none yet)", True, settings.GRAY),
@@ -680,7 +705,9 @@ class Game:
             example_wager = 0.0
         for horse in self.field:
             on_h = self.pool.amount_on_win(horse.id)
-            odds = self.pool.displayed_win_multiplier(horse.id)
+            odds = self.pool.displayed_win_multiplier(
+                horse.id, self.win_probs, example_wager if example_wager > 0 else 1.0
+            )
             if odds is None:
                 mult_str = "—"
                 example_str = ""
@@ -713,98 +740,45 @@ class Game:
             )
 
     def _draw_race(self) -> None:
-        self.screen.fill((34, 42, 34))
+        draw_oval_track(self.screen)
         race_num = self.race_index + 1
 
-        # Header
         title = self.large_font.render(
             f"Race {race_num} of {settings.RACES_PER_SESSION}", True, settings.GOLD
         )
-        self.screen.blit(title, (40, 20))
+        self.screen.blit(title, (24, 12))
 
-        remaining = max(0.0, settings.TARGET_RACE_SECONDS - self.race_elapsed)
         if self.race_finished:
             timer_text = "FINISH!"
         else:
             mins = int(self.race_elapsed) // 60
             secs = int(self.race_elapsed) % 60
-            timer_text = f"{mins}:{secs:02d}  (~{remaining:.0f}s to favorite)"
+            timer_text = f"{mins}:{secs:02d}"
         self.screen.blit(
             self.medium_font.render(timer_text, True, settings.WHITE),
-            (settings.SCREEN_WIDTH - 320, 24),
+            (settings.SCREEN_WIDTH - 140, 16),
         )
 
-        # Lanes — one dedicated row per horse
-        for i in range(settings.HORSES_PER_RACE):
-            y = settings.TRACK_MARGIN_TOP + i * settings.LANE_HEIGHT
-            color = (48, 58, 48) if i % 2 == 0 else (42, 52, 42)
-            pygame.draw.rect(
-                self.screen,
-                color,
-                (0, y, settings.SCREEN_WIDTH, settings.LANE_HEIGHT),
-            )
-            pygame.draw.line(
-                self.screen,
-                (90, 100, 90),
-                (0, y),
-                (settings.SCREEN_WIDTH, y),
-                2,
-            )
-            lane_label = self.small_font.render(f"Lane {i + 1}", True, settings.GRAY)
-            self.screen.blit(lane_label, (8, y + 6))
+        # Draw backstretch horses first so homestretch reads on top
+        def draw_depth(h: Horse) -> float:
+            return h.y
 
-        # Bottom edge of last lane
-        bottom_y = (
-            settings.TRACK_MARGIN_TOP
-            + settings.LANE_HEIGHT * settings.HORSES_PER_RACE
-        )
-        pygame.draw.line(
-            self.screen,
-            (90, 100, 90),
-            (0, bottom_y),
-            (settings.SCREEN_WIDTH, bottom_y),
-            2,
-        )
-
-        # Finish line
-        fx = settings.TRACK_FINISH_X
-        for stripe in range(0, settings.SCREEN_HEIGHT, 20):
-            c = settings.WHITE if (stripe // 20) % 2 == 0 else settings.BLACK
-            pygame.draw.rect(self.screen, c, (fx, stripe, 10, 20))
-
-        # Start marker
-        pygame.draw.line(
-            self.screen,
-            settings.GRAY,
-            (settings.TRACK_START_X, settings.TRACK_MARGIN_TOP),
-            (settings.TRACK_START_X, bottom_y),
-            2,
-        )
-
-        # Horses — each locked to its own lane center
-        for horse in sorted(self.field, key=lambda h: h.lane_index):
-            lane_y = (
-                settings.TRACK_MARGIN_TOP
-                + horse.lane_index * settings.LANE_HEIGHT
-                + settings.LANE_HEIGHT / 2
+        for horse in sorted(self.field, key=draw_depth):
+            hx, hy = int(horse.x), int(horse.y)
+            pygame.draw.circle(self.screen, horse.color, (hx, hy), self.HORSE_RADIUS)
+            pygame.draw.circle(self.screen, settings.BLACK, (hx, hy), self.HORSE_RADIUS, 1)
+            # Nose in the direction of travel
+            nose = (
+                hx + int(math.cos(horse.heading) * (self.HORSE_RADIUS + 8)),
+                hy + int(math.sin(horse.heading) * (self.HORSE_RADIUS + 8)),
             )
-            horse.lane_y = lane_y
-            pygame.draw.circle(
-                self.screen,
-                horse.color,
-                (int(horse.x), int(lane_y)),
-                self.HORSE_RADIUS,
-            )
-            # Name stays in-lane to the left of the horse (avoids crossing lanes)
+            pygame.draw.line(self.screen, horse.color, (hx, hy), nose, 3)
+
             label = self.small_font.render(horse.name, True, settings.WHITE)
-            label_x = max(70, int(horse.x) - label.get_width() - 18)
-            self.screen.blit(
-                label,
-                (label_x, int(lane_y) - label.get_height() // 2),
-            )
+            self.screen.blit(label, (hx - label.get_width() // 2, hy - 28))
             if horse.finished and horse.place:
                 place = self.small_font.render(str(horse.place), True, settings.GOLD)
-                self.screen.blit(place, (fx + 18, int(lane_y) - 8))
+                self.screen.blit(place, (hx - 4, hy + 12))
 
         hint = (
             "Click or Enter for results"
@@ -812,7 +786,7 @@ class Game:
             else "Click or Enter to skip to finish"
         )
         self._draw_centered(
-            self.small_font, hint, settings.LIGHT_GRAY, settings.SCREEN_HEIGHT - 24
+            self.small_font, hint, settings.WHITE, settings.SCREEN_HEIGHT - 18
         )
 
     def _draw_results(self) -> None:

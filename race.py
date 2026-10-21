@@ -51,6 +51,66 @@ def order_probability(horses: list[Horse], ordered_ids: list[int]) -> float:
     return p
 
 
+# Relative speed samples over a horse's own race (start → finish).
+# Different shapes let horses lead then fade, or close from behind.
+_PACE_STYLES: dict[str, list[float]] = {
+    "front": [1.28, 1.18, 1.10, 1.00, 0.92, 0.84, 0.78, 0.72],
+    "closer": [0.72, 0.78, 0.84, 0.92, 1.02, 1.18, 1.32, 1.40],
+    "stalker": [0.90, 0.96, 1.04, 1.10, 1.06, 1.00, 1.16, 1.22],
+    "even": [1.00, 1.04, 0.96, 1.06, 0.94, 1.08, 0.98, 1.10],
+    "duel": [1.16, 1.12, 0.88, 0.94, 1.18, 0.90, 1.14, 1.08],
+}
+
+
+def assign_pace_profiles(
+    horses: list[Horse], rng: random.Random | None = None
+) -> None:
+    """Give each horse a variable-speed profile for the animation."""
+    rng = random.Random() if rng is None else rng
+    styles = list(_PACE_STYLES.keys())
+    for horse in horses:
+        base = list(_PACE_STYLES[rng.choice(styles)])
+        horse.pace_speeds = [max(0.45, s + rng.uniform(-0.08, 0.08)) for s in base]
+
+
+def pace_progress(pace_speeds: list[float], u: float) -> float:
+    """
+    Fraction of the lap completed at fraction u of this horse's race time.
+    Speed varies along the race; the curve is normalized so progress is 1 at u=1.
+    """
+    if u <= 0:
+        return 0.0
+    if u >= 1 or not pace_speeds:
+        return 1.0
+    n = len(pace_speeds)
+    if n == 1:
+        return min(1.0, u)
+
+    def speed_at(t: float) -> float:
+        t = min(1.0, max(0.0, t))
+        pos = t * (n - 1)
+        i = min(n - 2, int(pos))
+        f = pos - i
+        return pace_speeds[i] * (1 - f) + pace_speeds[i + 1] * f
+
+    samples = 48
+    total = 0.0
+    reached = 0.0
+    for k in range(samples):
+        t0 = k / samples
+        t1 = (k + 1) / samples
+        mid = speed_at(0.5 * (t0 + t1))
+        piece = mid * (t1 - t0)
+        total += piece
+        if t1 <= u:
+            reached += piece
+        elif t0 < u:
+            reached += mid * (u - t0)
+    if total <= 0:
+        return min(1.0, u)
+    return min(1.0, reached / total)
+
+
 def simulate_race(
     horses: list[Horse],
     *,

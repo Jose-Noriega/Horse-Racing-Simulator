@@ -108,11 +108,19 @@ Parlay notes:
   - Parlay money on a horse as 1st leg moves that horse's live win multiplier
   - Entire race pool is paid to hitting tickets (or returned if none hit)
 
+  [x] Variable-speed oval animation so horses surge, fade, and overtake
+  [x] Stadium oval track (one lap, counterclockwise)
+  [x] Undo last wager (button + Ctrl+Z)
+  [x] Show a payout multiplier even when a horse has no bets yet
+
+  
   ------------------------------------
   NEXT THINGS TO ADD
   ------------------------------------
-  [] have the horses in the animation overtake each other and make it look like a true horse race where they overtake one another and the velocity of the horses is not constant throught the race
-  [] make the race be an oval like it would be in a real horse race
-  [] add an undo button in case there are mistakes while writing in the bets
-  [] make sure there is a payout shown for new horses even if no bet has been placed on them
+  [] make it so that some horses start more in front such that every horse runs the same distance (that way you can use their set velocity instead of having to scale it based on what lane they are) (another purpose for this is so that two horses being next to each other actually means something, especially in the last stretch where it is straight)
+  [] make it so that there is more overtaking
+  [] I tried to change the number of horses to 6 per race but that broke the code, make sure that doesnt happen anymore.
+
+
+
   

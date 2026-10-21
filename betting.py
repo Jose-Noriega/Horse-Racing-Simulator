@@ -37,14 +37,24 @@ class PlayerPayout:
 
 
 @dataclass
+class UndoRecord:
+    player_number: int
+    horse_ids: tuple[int, ...]
+    amount: float
+    created_new: bool
+
+
+@dataclass
 class BettingPool:
     """Tracks wagers for the current race and exposes live payout info."""
 
     bets: list[Bet] = field(default_factory=list)
     player_names: dict[int, str] = field(default_factory=dict)
+    undo_stack: list[UndoRecord] = field(default_factory=list)
 
     def clear(self) -> None:
         self.bets.clear()
+        self.undo_stack.clear()
         # Keep player_names across races so # + name stay linked.
 
     def remember_player(self, player_number: int, person_name: str) -> str:
@@ -77,6 +87,9 @@ class BettingPool:
                 existing.amount += amount
                 if name:
                     existing.person_name = name
+                self.undo_stack.append(
+                    UndoRecord(player_number, ids, amount, created_new=False)
+                )
                 return existing
 
         bet = Bet(
@@ -86,7 +99,27 @@ class BettingPool:
             amount=amount,
         )
         self.bets.append(bet)
+        self.undo_stack.append(
+            UndoRecord(player_number, ids, amount, created_new=True)
+        )
         return bet
+
+    def undo_last(self) -> bool:
+        """Reverse the most recent wager (or added amount). Returns False if none."""
+        if not self.undo_stack:
+            return False
+        action = self.undo_stack.pop()
+        for i, bet in enumerate(self.bets):
+            if bet.player_number != action.player_number:
+                continue
+            if bet.horse_ids != action.horse_ids:
+                continue
+            if action.created_new or bet.amount - action.amount <= 1e-9:
+                self.bets.pop(i)
+            else:
+                bet.amount -= action.amount
+            return True
+        return False
 
     @property
     def total_pool(self) -> float:
@@ -174,15 +207,28 @@ class BettingPool:
                 grouped[bet.player_number].person_name = bet.person_name
         return sorted(grouped.values(), key=lambda p: (-p.amount, p.player_number))
 
-    def displayed_win_multiplier(self, horse_id: int) -> float | None:
+    def displayed_win_multiplier(
+        self,
+        horse_id: int,
+        p_win: dict[int, float] | None = None,
+        probe_wager: float = 1.0,
+    ) -> float | None:
         """
-        Live win-bet multiplier. Parlay stakes whose first leg is this horse
-        count toward it, so parlays move the posted horse price.
+        Live win-bet multiplier. Always returns a number when possible, even if
+        nobody has bet this horse yet (hypothetical next wager would take the
+        unbacked share of the pool, or 1/p_win if the pool is empty).
         """
+        wager = probe_wager if probe_wager > 0 else 1.0
         on_horse = self.amount_on_win(horse_id)
-        if on_horse <= 0 or self.total_pool <= 0:
-            return None
-        return self.total_pool / on_horse
+        pool = self.total_pool
+        if on_horse > 0 and pool > 0:
+            return pool / on_horse
+        if pool > 0:
+            # No money on this horse yet: a new wager of `wager` would win the pool.
+            return (pool + wager) / wager
+        if p_win and horse_id in p_win:
+            return 1.0 / max(p_win[horse_id], 1e-9)
+        return None
 
     def displayed_ticket_multiplier(
         self,
@@ -195,11 +241,11 @@ class BettingPool:
         Win tickets use the live pool price; parlays use order probability
         times a bonus, then scale into the current pool.
         """
-        if not horse_ids or self.total_pool <= 0:
+        if not horse_ids:
             return None
         ids = list(horse_ids)
         if len(ids) == 1:
-            return self.displayed_win_multiplier(ids[0])
+            return self.displayed_win_multiplier(ids[0], p_win)
 
         p_order = order_probability(horses, ids)
         fair = self._parlay_bonus(len(ids)) / max(p_order, 1e-9)
