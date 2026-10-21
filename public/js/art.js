@@ -3,8 +3,8 @@
 // Colors in this game are [r, g, b] arrays. Helpers take an array or a css string.
 
 export const INK = "#1c1226";
-export const DISPLAY = 'Impact, "Arial Narrow Bold", "Arial Black", sans-serif';
-export const BODY = '"Trebuchet MS", Verdana, "Helvetica Neue", Arial, sans-serif';
+export const DISPLAY = '"Comic Sans MS", "Comic Sans", cursive';
+export const BODY = '"Comic Sans MS", "Comic Sans", cursive';
 
 export const PAL = {
   cream: "#fff4d6",

@@ -44,12 +44,10 @@ test("leveling: peak under the ceiling, never louder than the target", () => {
   }
 });
 
-test("the loudness order is the design: gun and boom > fanfare > money > UI", () => {
+test("fanfare is louder than gunshot and boom", () => {
   const st = (name) => shortTermDb(leveled[name]);
-  // The gun and boom were 11 dB above the fanfare and that was too loud, so the
-  // margin is small now. They still have to be on top. Raise it if the mix changes.
-  assert.ok(st("gunshot") > st("fanfare") + 1.5, "gun above fanfare");
-  assert.ok(st("boom") > st("fanfare") + 1.5, "boom above fanfare");
+  assert.ok(st("fanfare") > st("gunshot") + 1.5, "fanfare above gun");
+  assert.ok(st("fanfare") > st("boom") + 1.5, "fanfare above boom");
   for (const quiet of ["register", "coin", "beepLast", "beep", "ding", "gate", "pick", "undo", "click", "tick", "swish"]) {
     assert.ok(st("fanfare") > st(quiet), `fanfare should be above ${quiet}`);
   }

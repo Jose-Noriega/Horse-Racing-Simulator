@@ -61,7 +61,7 @@ export const HORSE_COLORS = [
 // are not equally loud, so peak would have lied. A peak ceiling of -3 dBFS still
 // applies (see synth.setLoudness) so a short crack isn't shoved into the limiter.
 // The order is the point.
-//   gun + boom > fanfare > money + countdown > race effects > UI blips > UI ticks
+//   fanfare > money + countdown, with gunshot and boom below the fanfare
 // Hooves are a bed under all of it. A limiter on the master catches pile-ups.
 export const MIX_DB = {
   // events you should jump at

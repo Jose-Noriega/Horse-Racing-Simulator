@@ -9,7 +9,7 @@ import {
   getLayer, panel, candyButton, ribbon, wobbleText, burst, puff, inkHeart, inkEllipse, inkLine, inkText, plainText, fitText, wrapText, bubble, marquee, inkRect, inkCircle, inkStar, inkFill, textWidth,
 } from "./art.js";
 import { drawPortrait, drawBookie, drawHorse, makeDemoHorse } from "./characters.js";
-import { bookieLine, shakeOffset, poolBump, drawBettingFx } from "./fx.js";
+import { shakeOffset, poolBump, drawBettingFx } from "./fx.js";
 import { BADGES, CORNER_TITLE, DNF_NOTE, isMistake, NO_BETS, NO_BETS_BUBBLE, PICK_HINT, PLATES, REFUND_BUBBLE, SUMMARY_NONE } from "./words.js";
 
 const W = settings.SCREEN_WIDTH;
@@ -416,22 +416,13 @@ export function drawBettingScreen(g) {
   }
 
   // ---- bottom: the bookie behind his counter
-  const line = bookieLine(g);
-  const talking = g.time < g.art.talkUntil;
   ctx.save();
   ctx.translate(96, 676); // scale him up from the counter line so he stays behind it
   ctx.scale(1.2, 1.2);
   ctx.translate(-96, -676);
-  drawBookie(ctx, 96, 642, t, g.art.mood, talking, g.mouse);
+  drawBookie(ctx, 96, 642, t, g.art.mood, false, g.mouse);
   ctx.restore();
   ctx.drawImage(getLayer(g, "counter", paintCounter), 0, 0, W, H);
-  if (line) {
-    const lines = wrapText(ctx, line, 430, 16, 2);
-    const bh = 22 + lines.length * 19;
-    const by = 622 - bh / 2;
-    bubble(ctx, 184, by, 470, bh, 140, 606);
-    lines.forEach((ln, k) => plainText(ctx, ln, 180 + 235, by + 11 + 9.5 + k * 19, 16, INK, { align: "center" }));
-  }
   if (g.statusMessage) {
     const err = isMistake(g.statusMessage);
     plainText(ctx, fitText(ctx, g.statusMessage, 584, 15.5), W / 2 + 4, 698, 15.5, err ? "#ff9d9d" : "#f2f2e4", { align: "center" });

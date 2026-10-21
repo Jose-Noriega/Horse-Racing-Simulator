@@ -1,19 +1,17 @@
-// The race screen, Flash style: the field, dust, speed lines, the announcer and his
-// quips, confetti, photo finish, cartoon explosions, the finish board, the iris wipe.
+// The race screen, Flash style: the field, dust, speed lines, confetti, photo finish,
+// cartoon explosions, the finish board, the iris wipe.
 // The game still runs the race. This file only reads its state and draws.
 
 import * as settings from "./settings.js";
 import {
-  INK, PAL, BODY, shade, hash, easeOut, easeBack, clamp01, inkText, plainText, fitText, wrapText, bubble, panel, ribbon,
+  INK, PAL, BODY, shade, hash, easeOut, easeBack, clamp01, inkText, plainText, fitText, panel, ribbon,
   inkCircle, inkEllipse, inkRect, inkFill, inkStar, burst, puff,
 } from "./art.js";
 import { drawHorse, drawPortrait } from "./characters.js";
-import { drawScenery, drawGags, drawSky } from "./scenery.js";
+import { drawScenery, drawGags } from "./scenery.js";
 import { drawCrowd } from "./crowd.js";
 import { stridePhase } from "./sprites.js";
-import {
-  ANNOUNCER_GAP, BOOMS, countdownLine, explodeLine, lastPlaceLine, leadLine, lineupLine, midLine, photoLine, startLine, winnerLine,
-} from "./words.js";
+import { BOOMS } from "./words.js";
 
 const W = settings.SCREEN_WIDTH;
 const H = settings.SCREEN_HEIGHT;
@@ -26,16 +24,7 @@ const pickOf = (list) => list[Math.floor(Math.random() * list.length)];
 function freshRace() {
   return {
     lastState: null,
-    say: "",
-    sayUntil: 0,
-    lastSayAt: -9,
-    prio: 0,
-    nextMid: 0,
-    midDone: false, // the one mid-race line has been said
-    later: null, // a line waiting its turn: { at, text }
-    leader: null,
     finishedCount: 0,
-    counted: false,
     winnerId: null,
     winnerAt: -9,
     photoAt: -9,
@@ -53,17 +42,6 @@ function freshRace() {
 
 function raceArt(g) {
   return (g.art.race ??= freshRace());
-}
-
-function say(g, r, text, secs = 2.8, prio = 1) {
-  const now = g.time;
-  if (now < r.sayUntil && prio < r.prio) return;
-  // Big moments (3) and the setup moment (2) always speak. The rest keep a gap, so he stays rare.
-  if (prio < 2 && now - r.lastSayAt < ANNOUNCER_GAP) return;
-  r.say = text;
-  r.sayUntil = now + secs;
-  r.prio = prio;
-  r.lastSayAt = now;
 }
 
 function confettiBurst(r, x, y, count, spread = 1) {
@@ -87,33 +65,15 @@ function confettiRain(r, count) {
   }
 }
 
-const nameOf = (g, id) => g.field.find((h) => h.id === id)?.name ?? "somebody";
-
-// The horse with the best and the worst chance in this field.
-function oddsEnds(g) {
-  const ids = g.field.map((h) => h.id);
-  const p = (id) => g.winProbs[id] ?? 0;
-  return {
-    favId: ids.reduce((a, b) => (p(a) >= p(b) ? a : b)),
-    longId: ids.reduce((a, b) => (p(a) <= p(b) ? a : b)),
-  };
-}
-
 // Called every frame from fx.updateArt for every screen that is not betting.
 export function updateRaceFx(g, dt) {
   const r = raceArt(g);
-  const mem = (g.art.speechMem ??= {}); // no-repeat memory lasts the whole card
   const now = g.time;
   if (g.state !== r.lastState) {
     const showerUntil = r.showerUntil;
     if (g.state === "setup") {
       const keep = r.confetti;
       Object.assign(r, freshRace(), { confetti: keep });
-      say(g, r, lineupLine({ raceIndex: g.raceIndex }), 3.6, 1);
-    } else if (g.state === "race") {
-      const start = startLine({ raceIndex: g.raceIndex });
-      if (start) say(g, r, start, 2.4, 3);
-      r.nextMid = now + 10 + Math.random() * 8;
     } else if (g.state === "results" && r.winnerId !== null) {
       r.showerUntil = now + 1.4;
     } else {
@@ -121,24 +81,8 @@ export function updateRaceFx(g, dt) {
     }
     r.lastState = g.state;
   }
-  if (g.state === "setup" && g.countdown !== null && !r.counted) {
-    r.counted = true;
-    const { longId } = oddsEnds(g);
-    const line = countdownLine({ poolEmpty: g.pool.bets.length === 0, longshotName: nameOf(g, longId) });
-    if (line) say(g, r, line, 3.2, 2);
-  }
 
   if (g.state === "race") {
-    // lead changes
-    const lead = g.passOrder[0];
-    const lh = g.field.find((h) => h.id === lead);
-    if (lead !== undefined && lead !== r.leader && lh && lh.progress > 0.12 && !lh.finished) {
-      if (r.leader !== null) {
-        const line = leadLine({ leaderName: nameOf(g, lead), leaderIsLongshot: lead === oddsEnds(g).longId });
-        if (line) say(g, r, line, 2.6, 1);
-      }
-      r.leader = lead;
-    }
     // new finishers
     const done = g.field.filter((h) => h.finished && !g.exploded.has(h.id));
     if (done.length > r.finishedCount) {
@@ -148,33 +92,21 @@ export function updateRaceFx(g, dt) {
         r.winnerAt = now;
         r.zoomAt = now;
         confettiBurst(r, 410, win.y, 110);
-        const pct = (100 * (g.winProbs[win.id] ?? 0)).toFixed(1);
-        say(g, r, winnerLine({ name: win.name, pct, isLongshot: win.id === oddsEnds(g).longId }), 2.4, 3);
       }
       if (r.finishedCount < 2 && done.length >= 2 && g.raceResult && !g.exploded.size) {
         const [a, b] = g.raceResult.ordered;
         if (g.visualFinishTime(b) - g.visualFinishTime(a) < 0.4) {
           r.photoAt = now;
           r.flashAt = now;
-          r.later = { at: now + 2.4, text: photoLine(Math.random, mem), secs: 3.2 }; // after the winner has been named
         }
-      }
-      // everybody is in. If the favorite came last, say so
-      const { favId } = oddsEnds(g);
-      const fav = g.field.find((h) => h.id === favId);
-      if (done.length === g.field.length && fav && fav.place === g.field.length) {
-        say(g, r, lastPlaceLine({ favName: fav.name }), 3, 1);
       }
       r.finishedCount = done.length;
     }
     // explosions
-    let said = false;
     for (const id of g.exploded) {
       if (!r.explodedSeen.has(id)) {
         r.explodedSeen.add(id);
         r.explodedAt.set(id, now);
-        if (!said) say(g, r, explodeLine({ name: nameOf(g, id) }, Math.random, mem), 3, 3);
-        said = true; // four horses can blow up in one frame. one line
       }
     }
     for (const b of g.blasts) {
@@ -184,19 +116,6 @@ export function updateRaceFx(g, dt) {
       }
     }
     r.booms = r.booms.filter((b) => now - b.at < 1.3);
-    // flavor between events
-    // at most one flavor line a race, and only if nothing else is being said
-    if (!r.midDone && now > r.nextMid && now > r.sayUntil && !g.raceFinished) {
-      const last = g.passOrder[g.passOrder.length - 1];
-      const { favId } = oddsEnds(g);
-      const line = midLine({ lastName: nameOf(g, last), favName: nameOf(g, favId), favIsLast: last === favId }, Math.random, mem);
-      say(g, r, line, 3.2, 1);
-      r.midDone = true;
-    }
-    if (r.later && now >= r.later.at) {
-      say(g, r, r.later.text, r.later.secs, 3);
-      r.later = null;
-    }
   }
 
   // confetti physics. A shower from the top on the results screen.
@@ -213,82 +132,8 @@ export function updateRaceFx(g, dt) {
   r.confetti = r.confetti.filter((c) => c.age < c.life && c.y < H + 20);
 }
 
-// --- the announcer ---------------------------------------------------------
-
-function drawAnnouncer(c, x, y, t, talking, excited) {
-  const bob = Math.sin(t * 3) * 1.2 + (excited ? Math.abs(Math.sin(t * 16)) * 3 : 0);
-  c.save();
-  c.translate(x, y + bob);
-  inkRect(c, -22, 14, 44, 30, 10, "#2c5fb3", 2.6);
-  c.beginPath();
-  c.moveTo(-6, 14);
-  c.lineTo(0, 30);
-  c.lineTo(6, 14);
-  c.closePath();
-  inkFill(c, "#fff", 2);
-  c.beginPath();
-  c.moveTo(0, 22);
-  c.lineTo(-8, 18);
-  c.lineTo(-8, 26);
-  c.closePath();
-  c.moveTo(0, 22);
-  c.lineTo(8, 18);
-  c.lineTo(8, 26);
-  c.closePath();
-  inkFill(c, PAL.red, 1.6);
-  inkEllipse(c, 0, 0, 19, 18, "#f2c29b", 2.6);
-  // big swoopy hair
-  c.beginPath();
-  c.moveTo(-19, -4);
-  c.quadraticCurveTo(-20, -26, 2, -22);
-  c.quadraticCurveTo(22, -26, 19, -4);
-  c.quadraticCurveTo(8, -14, -19, -4);
-  c.closePath();
-  inkFill(c, "#e8b030", 2.4);
-  // eyes
-  for (const ex of [-6, 6]) {
-    inkEllipse(c, ex, -2, excited ? 4.6 : 3.8, excited ? 5.6 : 4.4, "#fff", 1.6);
-    c.fillStyle = INK;
-    c.beginPath();
-    c.arc(ex + 1, -1.6, 1.5, 0, Math.PI * 2);
-    c.fill();
-  }
-  // mouth
-  c.fillStyle = "#5a1010";
-  c.strokeStyle = INK;
-  c.lineWidth = 1.6;
-  c.beginPath();
-  if (talking || excited) c.ellipse(0, 9, 6, 2 + Math.abs(Math.sin(t * 15)) * 5, 0, 0, Math.PI * 2);
-  else {
-    c.moveTo(-5, 9);
-    c.quadraticCurveTo(0, 12, 5, 8);
-  }
-  if (talking || excited) c.fill();
-  c.stroke();
-  // headset + mic
-  c.strokeStyle = INK;
-  c.lineWidth = 4.4;
-  c.beginPath();
-  c.arc(0, -4, 21, Math.PI * 1.08, Math.PI * 1.92);
-  c.stroke();
-  c.strokeStyle = "#444";
-  c.lineWidth = 2.4;
-  c.stroke();
-  inkRect(c, -23, -3, 7, 10, 3, "#444", 1.8);
-  c.strokeStyle = INK;
-  c.lineWidth = 2.4;
-  c.beginPath();
-  c.moveTo(-20, 6);
-  c.quadraticCurveTo(-18, 16, -8, 12);
-  c.stroke();
-  inkCircle(c, -8, 12, 3, "#666", 1.6);
-  c.restore();
-}
-
 function drawHud(g, racing) {
   const { ctx } = g;
-  const r = raceArt(g);
-  const t = g.time;
   ribbon(ctx, 150, 34, 210, 36, `RACE ${g.raceIndex + 1} OF ${RACES}`, 26);
 
   if (racing) {
@@ -315,21 +160,6 @@ function drawHud(g, racing) {
     ctx.restore();
   }
 
-  // the announcer and what he is yelling
-  const live = t < r.sayUntil;
-  drawAnnouncer(ctx, 470, 52, t, live && t < r.lastSayAt + 1.8, live && r.prio >= 3);
-  if (live) {
-    const lines = wrapText(ctx, r.say, 380, 16, 2);
-    const bh = 20 + lines.length * 19;
-    const pop = easeBack((t - r.lastSayAt) / 0.18);
-    ctx.save();
-    ctx.translate(510, 52);
-    ctx.scale(Math.min(1, pop), Math.min(1, pop));
-    ctx.translate(-510, -52);
-    bubble(ctx, 504, 44 - bh / 2 + 4, 404, bh, 492, 52, { fill: r.prio >= 3 ? "#fff3a0" : "#fff" });
-    lines.forEach((ln, k) => plainText(ctx, ln, 504 + 202, 44 - bh / 2 + 4 + 10 + 9.5 + k * 19, 16, INK, { align: "center" }));
-    ctx.restore();
-  }
 }
 
 // --- the field -------------------------------------------------------------
@@ -628,7 +458,6 @@ function drawWorld(g) {
   drawFieldArt(g);
   drawBoomArt(g);
   drawFinishBoardArt(g);
-  drawSky(g);
 }
 
 export function drawRaceScreen(g) {

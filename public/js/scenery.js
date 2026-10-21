@@ -1,13 +1,13 @@
-// The world around the track: grass, stands, rails, infield, signs, critters, sky stuff.
+// The world around the track: grass, stands, rails, infield, critters, sky stuff.
 // The still parts are painted once into a cached layer. Only the moving bits are
-// drawn every frame (flags, duck, billboard text, cloud shadows, blimp, chicken, gags).
+// drawn every frame (flags, duck, cloud shadows, chicken, gags).
 
 import * as settings from "./settings.js";
 import { innerRailRadius, outerRailRadius, laneRadius, startProgress, pointOnRadius, pointOnLane } from "./track.js";
 import {
-  getLayer, INK, PAL, BODY, shade, hash, easeOut, clamp01, inkFill, inkCircle, inkEllipse, inkRect, inkLine, inkText, plainText, bubble, inkStar, puff, textWidth,
+  getLayer, INK, PAL, shade, hash, easeOut, clamp01, inkFill, inkCircle, inkEllipse, inkRect, inkLine, inkText, plainText, bubble, inkStar, puff, textWidth,
 } from "./art.js";
-import { byRace, CHICKEN, DUCK, DUCK_EVERY, SPONSORS } from "./words.js";
+import { byRace, CHICKEN, DUCK, DUCK_EVERY } from "./words.js";
 
 const W = settings.SCREEN_WIDTH;
 const H = settings.SCREEN_HEIGHT;
@@ -217,14 +217,6 @@ function paintTrack(c) {
     inkLine(c, [[rx, 372], [rx - 2, 352]], "#3a8a3a", 2);
     inkEllipse(c, rx - 2, 350, 2, 5, "#8a5a2b", 1.2);
   }
-  // billboard: frame only. The words change every few seconds (overlay).
-  inkRect(c, 866, 372, 8, 40, 1, "#8a5a2b", 2);
-  inkRect(c, 946, 372, 8, 40, 1, "#8a5a2b", 2);
-  inkRect(c, 806, 306, 200, 72, 8, "#fff4d6", 3.5);
-  for (let i = 0; i < 12; i++) {
-    inkCircle(c, 812 + i * 16.6, 309, 2.6, "#ffe36a", 1.2);
-    inkCircle(c, 812 + i * 16.6, 375, 2.6, "#ffe36a", 1.2);
-  }
   flowerBed(c, 520, 490, 230);
   flowerBed(c, 330, 300, 60);
   pennants(c, 340, 940, 292, 12);
@@ -262,17 +254,6 @@ function flags(c, t) {
   }
 }
 
-function billboard(c, t) {
-  const idx = Math.floor(t / 3.2) % SPONSORS.length;
-  const age = (t % 3.2) / 3.2;
-  const a = Math.min(1, age * 8, (1 - age) * 8);
-  c.save();
-  c.globalAlpha = Math.max(0, a);
-  inkText(c, SPONSORS[idx][0], 906, 328, SPONSORS[idx][0].length > 14 ? 17 : 21, PAL.red, { align: "center", sw: 3 });
-  plainText(c, SPONSORS[idx][1], 906, 356, 10.5, "#4a3b6b", { align: "center" });
-  c.restore();
-}
-
 function duck(g, c, t) {
   const k = t * 0.5;
   const x = 440 + Math.cos(k) * 30;
@@ -298,46 +279,10 @@ function duck(g, c, t) {
   const q = t % DUCK_EVERY;
   if (q < 2.4) {
     const line = byRace(DUCK, g.raceIndex);
-    const bw = textWidth(c, line, 11) + 16;
-    bubble(c, x - bw / 2, y - 44, bw, 20, x, y - 14, { r: 8, line: 2, shadow: 2 });
-    plainText(c, line, x, y - 34, 11, INK, { align: "center" });
+    const bw = textWidth(c, line, 9) + 14;
+    bubble(c, x - bw / 2, y - 42, bw, 18, x, y - 14, { r: 7, line: 1.5, shadow: 1.5 });
+    plainText(c, line, x, y - 33, 9, INK, { align: "center" });
   }
-}
-
-function blimp(c, t) {
-  const cycle = 52;
-  const u = (t % cycle) / 20; // crosses in 20 s, then waits
-  if (u > 1) return;
-  const x = -160 + u * (W + 380);
-  const y = 44 + Math.sin(t * 0.9) * 4;
-  c.save();
-  c.translate(x, y);
-  // rope + banner
-  inkRect(c, -250, 6, 150, 22, 3, "#fff", 2);
-  inkText(c, "BET ON THE ONE IN THE HAT", -175, 18, 10.5, PAL.red, { align: "center", sw: 0, font: BODY });
-  c.strokeStyle = INK;
-  c.lineWidth = 1.6;
-  c.beginPath();
-  c.moveTo(-100, 14);
-  c.lineTo(-62, 10);
-  c.stroke();
-  inkEllipse(c, 0, 0, 66, 24, "#9fb4d8", 3);
-  c.fillStyle = "rgba(255,255,255,0.35)";
-  c.beginPath();
-  c.ellipse(-12, -9, 40, 7, 0, 0, Math.PI * 2);
-  c.fill();
-  c.beginPath();
-  c.moveTo(-60, -4);
-  c.lineTo(-84, -20);
-  c.lineTo(-80, 0);
-  c.lineTo(-84, 20);
-  c.lineTo(-60, 6);
-  c.closePath();
-  inkFill(c, PAL.red, 2.4);
-  inkRect(c, -14, 22, 30, 12, 4, "#b9b9d0", 2.2);
-  inkCircle(c, -4, 28, 2.2, "#7fd3ff", 1);
-  inkCircle(c, 6, 28, 2.2, "#7fd3ff", 1);
-  c.restore();
 }
 
 // Where the crowd gags stand: progress around the outer stands, row 22 out.
@@ -503,9 +448,9 @@ function chicken(g, c, t) {
   c.restore();
   if (u > 0.25 && u < 0.75) {
     const line = byRace(CHICKEN, g.raceIndex);
-    const bw = textWidth(c, line, 12) + 18;
-    bubble(c, x - bw / 2, y - 56, bw, 22, x - 2, y - 20, { r: 8, line: 2, shadow: 2 });
-    plainText(c, line, x, y - 45, 12, INK, { align: "center" });
+    const bw = textWidth(c, line, 10) + 16;
+    bubble(c, x - bw / 2, y - 52, bw, 18, x - 2, y - 20, { r: 7, line: 1.5, shadow: 1.5 });
+    plainText(c, line, x, y - 43, 10, INK, { align: "center" });
   }
 }
 
@@ -516,7 +461,6 @@ export function drawScenery(g) {
   c.drawImage(getLayer(g, `track${N}`, paintTrack), 0, 0, W, H);
   cloudShadows(c, t);
   flags(c, t);
-  billboard(c, t);
   duck(g, c, t);
   chicken(g, c, t);
 }
@@ -529,8 +473,4 @@ export function drawGags(g) {
   vendor(c, t);
   mascot(c, t);
   fainter(c, t);
-}
-
-export function drawSky(g) {
-  blimp(g.ctx, g.time);
 }
