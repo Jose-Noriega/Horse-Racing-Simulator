@@ -107,3 +107,12 @@ Parlay notes:
     so they pay more per dollar than a win bet when they hit
   - Parlay money on a horse as 1st leg moves that horse's live win multiplier
   - Entire race pool is paid to hitting tickets (or returned if none hit)
+
+  ------------------------------------
+  NEXT THINGS TO ADD
+  ------------------------------------
+  [] have the horses in the animation overtake each other and make it look like a true horse race where they overtake one another and the velocity of the horses is not constant throught the race
+  [] make the race be an oval like it would be in a real horse race
+  [] add an undo button in case there are mistakes while writing in the bets
+  [] make sure there is a payout shown for new horses even if no bet has been placed on them
+  
