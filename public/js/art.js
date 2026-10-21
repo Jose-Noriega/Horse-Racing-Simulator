@@ -411,21 +411,44 @@ export function coin(ctx, x, y, r, squash = 1) {
 }
 
 // A little cartoon cloud puff. Used for dust and smoke.
+// Hack: stroke first, then fill. The fill hides the inner arcs so only the outline
+// of the whole blob shows.
 export function puff(ctx, x, y, r, fill, alpha = 1, outline = true) {
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.beginPath();
   ctx.arc(x - r * 0.55, y + r * 0.15, r * 0.7, 0, Math.PI * 2);
+  ctx.moveTo(x + r * 0.55 + r * 0.7, y + r * 0.15);
   ctx.arc(x + r * 0.55, y + r * 0.15, r * 0.7, 0, Math.PI * 2);
+  ctx.moveTo(x + r * 0.85, y - r * 0.25);
   ctx.arc(x, y - r * 0.25, r * 0.85, 0, Math.PI * 2);
-  ctx.fillStyle = css(fill);
-  ctx.fill();
   if (outline) {
-    ctx.lineWidth = 1.6;
+    ctx.lineWidth = 3.2;
+    ctx.lineJoin = "round";
     ctx.strokeStyle = INK;
     ctx.stroke();
   }
+  ctx.fillStyle = css(fill);
+  ctx.fill();
   ctx.restore();
+}
+
+// Cache an offscreen layer. draw(ctx2) paints in logical 1280x720 units.
+// Rebuilt when the canvas backing size changes. Hack: keyed by name only, so two
+// different looks need two names.
+export function getLayer(g, name, draw) {
+  const w = g.canvas.width;
+  const h = g.canvas.height;
+  const hit = g.art.cache[name];
+  if (hit && hit.canvas.width === w && hit.canvas.height === h) return hit.canvas;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const c2 = canvas.getContext("2d");
+  c2.setTransform(g.pixelScale, 0, 0, g.pixelScale, 0, 0);
+  draw(c2);
+  g.art.cache[name] = { canvas };
+  return canvas;
 }
 
 // A red ribbon banner with swallowtail ends. cx, cy is the middle.
@@ -450,22 +473,4 @@ export function ribbon(ctx, cx, cy, w, h, text, size = 30, fill = PAL.red) {
   ctx.lineWidth = 2;
   ctx.stroke();
   inkText(ctx, text, cx, cy + 1, size, "#fff", { align: "center", sw: 5 });
-}
-
-// Cache an offscreen layer. draw(ctx2) paints in logical 1280x720 units.
-// Rebuilt when the canvas backing size changes. Hack: keyed by name only, so two
-// different looks need two names.
-export function getLayer(g, name, draw) {
-  const w = g.canvas.width;
-  const h = g.canvas.height;
-  const hit = g.art.cache[name];
-  if (hit && hit.canvas.width === w && hit.canvas.height === h) return hit.canvas;
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const c2 = canvas.getContext("2d");
-  c2.setTransform(g.pixelScale, 0, 0, g.pixelScale, 0, 0);
-  draw(c2);
-  g.art.cache[name] = { canvas };
-  return canvas;
 }

@@ -11,28 +11,21 @@ import {
 import { getHorse, makeHorse } from "./horses_data.js";
 import { assignPaceProfiles, orderProbability, paceProgress, simulateRace, winProbabilities } from "./race.js";
 import { getRaceFieldIds } from "./race_card.js";
-import { drawOvalTrack, laneProgress, pointOnLane } from "./track.js";
-import { buildCrowd, detectPasses, drawCrowd } from "./crowd.js";
+import { laneProgress, pointOnLane } from "./track.js";
+import { buildCrowd, detectPasses } from "./crowd.js";
 import { Sounds } from "./sounds.js";
 import { drawStarter, footfallCount, stridePhase } from "./sprites.js";
-import { rgb, shortNum } from "./ui.js";
+import { shortNum } from "./ui.js";
 import { createArt, updateArt } from "./fx.js";
-import { drawBettingScreen, drawButtonArt } from "./screens.js";
+import { drawBettingScreen, drawButtonArt, drawMenuScreen, drawResultsScreen, drawSummaryScreen } from "./screens.js";
 import { drawRaceScreen, drawSetupArt, drawFieldArt, drawBoomArt, drawFinishBoardArt, drawPopArt, drawFadeArt } from "./racefx.js";
 
 const { SCREEN_WIDTH: W, SCREEN_HEIGHT: H, HORSES_PER_RACE: N, RACES_PER_SESSION: RACES } = settings;
 
-const DNF_COLOR = [220, 90, 90];
 const FORM_FIELDS = ["player", "name", "wager"];
 const COUNTDOWN_SECONDS = 3.0;
-const FADE_SECONDS = 0.3;
 const DUST_LIFE = 0.6;
 const STARTER_POS = [380, 470]; // in the infield, just left of the start line
-
-// pygame's default font is smaller than its point size says. This scale makes a
-// browser font land at about the same size on screen.
-const FONT_SCALE = 0.78;
-const FONT = { title: 48, large: 32, medium: 24, small: 18, countdown: 220 };
 
 const easeOut = (t) => 1 - (1 - Math.min(1, Math.max(0, t))) ** 3; // fast start, soft stop
 const rand = (a, b) => a + (b - a) * Math.random();
@@ -776,115 +769,22 @@ export class Game {
     }
   }
 
-  // Cross-fade from the last frame of the previous screen.
+  // The screen change. An iris wipe, see racefx.js.
   drawFade() {
     drawFadeArt(this);
   }
 
-  // --- drawing helpers ----------------------------------------------------
+  // --- drawing: every screen is drawn by screens.js and racefx.js ---------
 
-  setFont(size, bold = true) {
-    this.ctx.font = `${bold ? "600 " : ""}${Math.round(size * FONT_SCALE)}px "Helvetica Neue", Arial, sans-serif`;
-  }
-
-  // Draw text with its top-left at (x, y), like pygame's blit of a rendered surface.
-  text(str, x, y, size, color, { align = "left", alpha = 1 } = {}) {
-    const { ctx } = this;
-    this.setFont(size);
-    ctx.textAlign = align;
-    ctx.textBaseline = "top";
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = rgb(color);
-    ctx.fillText(str, x, y);
-    ctx.globalAlpha = 1;
-  }
-
-  centered(str, size, color, cy) {
-    const { ctx } = this;
-    this.setFont(size);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = rgb(color);
-    ctx.fillText(str, W / 2, cy);
-  }
-
-  textWidth(str, size) {
-    this.setFont(size);
-    return this.ctx.measureText(str).width;
-  }
-
-  rrect(x, y, w, h, r, fill, stroke = null, lineWidth = 2) {
-    const { ctx } = this;
-    ctx.beginPath();
-    ctx.roundRect(x, y, w, h, r);
-    if (fill) {
-      ctx.fillStyle = rgb(fill);
-      ctx.fill();
-    }
-    if (stroke) {
-      ctx.strokeStyle = rgb(stroke);
-      ctx.lineWidth = lineWidth;
-      ctx.stroke();
-    }
-  }
-
-  disc(x, y, r, color) {
-    const { ctx } = this;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fillStyle = rgb(color);
-    ctx.fill();
-  }
-
-  fill(color) {
-    this.ctx.fillStyle = rgb(color);
-    this.ctx.fillRect(0, 0, W, H);
-  }
-
-  // Soft "neomorphic" button: raised slab with a light and a dark shadow.
-  // Pressed = sunk in. Hack: real neomorphism wants the button to match its
-  // background. Ours is a dark slate that reads OK on our dark screens.
+  // Candy button. Hover and press come from the mouse. See art.js.
   drawButton(btn, pulse = false) {
     drawButtonArt(this, btn, pulse);
-  }
-
-  drawTextBox(box, str, active) {
-    const { ctx } = this;
-    this.rrect(box.x, box.y, box.w, box.h, 4, [35, 35, 35], active ? settings.GOLD : settings.GRAY);
-    const cursor = active && Math.floor(this.time * 2) % 2 === 0 ? "|" : "";
-    this.setFont(FONT.small);
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = rgb(settings.WHITE);
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(box.x + 2, box.y, box.w - 4, box.h);
-    ctx.clip();
-    ctx.fillText(str + cursor, box.x + 8, box.y + box.h / 2);
-    ctx.restore();
   }
 
   // --- screens ------------------------------------------------------------
 
   drawMenu() {
-    // Soft track-like backdrop
-    this.fill([28, 36, 28]);
-    for (let i = 0; i < N; i++) {
-      const shade = 40 + (i % 2) * 8;
-      this.ctx.fillStyle = rgb([shade, shade + 10, shade]);
-      this.ctx.fillRect(0, 120 + i * 60, W, 60);
-    }
-    this.ctx.fillStyle = rgb(settings.GOLD);
-    this.ctx.fillRect(W - 140, 120, 8, N * 60);
-
-    this.centered(settings.TITLE, FONT.title, settings.GOLD, 200);
-    this.centered(`${RACES} races, ${N} horses each`, FONT.small, settings.LIGHT_GRAY, 270);
-    this.centered("Enter or click to start", FONT.small, settings.GRAY, 330);
-
-    this.btnStartCard.centerAt(W / 2, 400);
-    this.drawButton(this.btnStartCard);
-    this.centered("F9 mute   F fullscreen", FONT.small, settings.GRAY, H - 30);
-    if (this.secret) this.disc(W - 16, H - 16, 4, [120, 30, 30]); // faint tell that secret mode is on
+    drawMenuScreen(this);
   }
 
   drawBetting() {
@@ -930,70 +830,10 @@ export class Game {
   }
 
   drawResults() {
-    this.fill(settings.DARK_GRAY);
-    this.centered(`Race ${this.raceIndex + 1} results`, FONT.large, settings.GOLD, 36);
-    if (!this.raceResult) {
-      this.centered("No result yet.", FONT.medium, settings.LIGHT_GRAY, 200);
-      return;
-    }
-
-    // Finish order panel
-    this.rrect(40, 80, 560, Math.max(480, 60 + N * 50 + 10), 8, settings.PANEL);
-    this.text("Order", 60, 96, FONT.medium, settings.WHITE);
-    let y = 140;
-    for (const horse of this.raceResult.ordered) {
-      this.rrect(60, y, 500, 42, 6, horse.place === 1 ? [90, 75, 30] : [48, 48, 48]);
-      this.disc(82, y + 21, 12, horse.color);
-      const pWin = (100 * (this.winProbs[horse.id] ?? 0)).toFixed(1);
-      let line = `${horse.place}. ${horse.name}    win ${pWin}%`;
-      let color = horse.place === 1 ? settings.GOLD : settings.WHITE;
-      if (this.exploded.has(horse.id)) {
-        line = `DNF  ${horse.name}    win ${pWin}%`;
-        color = DNF_COLOR;
-      }
-      this.text(line, 108, y + 12, FONT.small, color);
-      y += 50;
-    }
-
-    // Payouts panel
-    this.rrect(640, 80, 580, 400, 8, settings.PANEL);
-    this.text("Payouts", 660, 96, FONT.medium, settings.WHITE);
-    this.text(`Winner: ${this.raceResult.ordered[0].name}`, 660, 130, FONT.small, settings.GOLD);
-    let sy = 170;
-    if (this.poolRefunded) this.text("No winners. Wagers returned.", 660, sy, FONT.small, settings.GRAY);
-    else if (!this.lastPayouts.length) this.text("No payouts.", 660, sy, FONT.small, settings.GRAY);
-    else {
-      const age = this.time - this.stateStart;
-      this.lastPayouts.forEach((payout, i) => {
-        // count up from $0, one payout after another
-        const shown = payout.amount * easeOut((age - 0.5 - i * 0.3) / 1.2);
-        this.text(`${formatPlayer(payout.playerNumber, payout.personName)}:  $${shortNum(shown)}`, 660, sy, FONT.small, settings.GREEN);
-        sy += 26;
-      });
-    }
-
-    this.btnNext.label = this.raceIndex + 1 >= RACES ? "View Card Summary" : "Next Race";
-    this.btnNext.x = 640;
-    this.btnNext.y = 520;
-    this.drawButton(this.btnNext);
+    drawResultsScreen(this);
   }
 
   drawSummary() {
-    this.fill([28, 32, 40]);
-    this.centered("Card complete", FONT.title, settings.GOLD, 80);
-    this.rrect(340, 180, 600, 360, 8, settings.PANEL);
-    this.text("Payouts", 370, 200, FONT.medium, settings.WHITE);
-
-    let y = 250;
-    if (!this.sessionPayouts.size) this.text("No payouts.", 370, y, FONT.small, settings.GRAY);
-    else {
-      const ranked = [...this.sessionPayouts].sort((a, b) => b[1][1] - a[1][1]);
-      ranked.forEach(([number, [name, paid]], i) => {
-        this.text(`${i + 1}. ${formatPlayer(number, name)}    $${shortNum(paid)}`, 370, y, FONT.small, settings.GREEN);
-        y += 28;
-      });
-    }
-    this.btnSummaryMenu.centerAt(W / 2, 600);
-    this.drawButton(this.btnSummaryMenu);
+    drawSummaryScreen(this);
   }
 }

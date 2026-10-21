@@ -515,7 +515,7 @@ const SCALE = 0.95;
 // x, y is the middle of the horse. heading only picks left or right.
 // phase is leg cycles. opt: { mood, face, charred, t }
 export function drawHorse(ctx, x, y, heading, horse, phase, running, opt = {}) {
-  const { mood = "neutral", face = "neutral", charred = false, t = 0 } = opt;
+  const { mood = "neutral", face = "neutral", charred = false, t = 0, scale = 1 } = opt;
   const { acc, trait } = quirks(horse.id);
   const dir = Math.cos(heading) >= 0 ? 1 : -1;
   const a = phase * 2 * Math.PI;
@@ -525,7 +525,7 @@ export function drawHorse(ctx, x, y, heading, horse, phase, running, opt = {}) {
 
   ctx.save();
   ctx.translate(x, y);
-  ctx.scale(dir * SCALE, SCALE);
+  ctx.scale(dir * SCALE * scale, SCALE * scale);
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
 
@@ -807,4 +807,9 @@ export function drawBookie(ctx, x, y, t, mood, talking, look) {
   }
   inkCircle(ctx, 0, 2, 6, "#f2b48a", 2);
   ctx.restore();
+}
+
+// A stand-in horse for scenes with no race (menu). Lane colors repeat.
+export function makeDemoHorse(id, color) {
+  return { id, color };
 }
