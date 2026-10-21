@@ -14,6 +14,7 @@ import { getRaceFieldIds } from "./race_card.js";
 import { laneProgress, pointOnLane } from "./track.js";
 import { buildCrowd, detectPasses } from "./crowd.js";
 import { Sounds } from "./sounds.js";
+import { STATUS } from "./words.js";
 import { drawStarter, footfallCount, stridePhase } from "./sprites.js";
 import { shortNum } from "./ui.js";
 import { createArt, updateArt } from "./fx.js";
@@ -225,7 +226,7 @@ export class Game {
         if (this.btnPlaceBet.hit(pos)) this.placeBet();
         else if (this.btnClearPicks.hit(pos)) {
           this.selectedLanes = [];
-          this.statusMessage = "Picks cleared.";
+          this.statusMessage = STATUS.cleared;
           this.sounds.play("clear");
         } else if (this.btnUndoBet.hit(pos)) this.undoBet();
         else if (this.btnStartRace.hit(pos)) this.openSetup();
@@ -415,7 +416,7 @@ export class Game {
       return;
     }
     if (this.selectedLanes.length >= settings.MAX_PARLAY_LEGS) {
-      this.fail(`Max ${settings.MAX_PARLAY_LEGS} horses in a parlay.`);
+      this.fail(STATUS.legs);
       return;
     }
     this.selectedLanes.push(lane);
@@ -430,12 +431,12 @@ export class Game {
   }
 
   placeBet() {
-    if (!this.field.length) return this.fail("No field loaded.");
-    if (!this.selectedLanes.length) return this.fail("Pick a horse first.");
+    if (!this.field.length) return this.fail(STATUS.noField);
+    if (!this.selectedLanes.length) return this.fail(STATUS.noPick);
     const playerNumber = parseInt(this.playerText, 10);
-    if (Number.isNaN(playerNumber)) return this.fail("Enter a player number.");
+    if (Number.isNaN(playerNumber)) return this.fail(STATUS.noPlayer);
     const amount = parseFloat(this.wagerText);
-    if (Number.isNaN(amount)) return this.fail("Enter a valid wager amount.");
+    if (Number.isNaN(amount)) return this.fail(STATUS.badWager);
     const horseIds = this.selectedLanes.map((i) => this.field[i].id);
     const names = this.selectedLanes.map((i) => this.field[i].name);
     let bet;
@@ -454,9 +455,9 @@ export class Game {
 
   undoBet() {
     if (undoLast(this.pool)) {
-      this.statusMessage = "Bet undone.";
+      this.statusMessage = STATUS.undone;
       this.sounds.play("undo");
-    } else this.fail("Nothing to undo.");
+    } else this.fail(STATUS.nothingToUndo);
   }
 
   // First action: line horses up at the gate. Nothing moves yet.

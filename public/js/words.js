@@ -233,4 +233,4 @@ export const REFUND_BUBBLE = ["No winners.", "Wagers returned.", "Nobody is sure
 export const NO_BETS_BUBBLE = ["No bets.", "The horses did that for free."];
 export const CORNER_TITLE = "ALSO HERE";
 export const DNF_NOTE = "is a cloud now";
-export const SUMMARY_NONE = "no payouts. the goose is pleased.";
+export const SUMMARY_NONE = "the goose is pleased."; // sits under a "No payouts." heading

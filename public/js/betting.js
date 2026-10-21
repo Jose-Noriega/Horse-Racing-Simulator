@@ -7,6 +7,7 @@
 
 import { orderProbability } from "./race.js";
 import { MAX_PARLAY_LEGS } from "./settings.js";
+import { STATUS } from "./words.js"; // the messages live there so the art can read them
 
 const sameIds = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
 
@@ -44,13 +45,13 @@ export function rememberPlayer(pool, playerNumber, personName) {
 
 // Returns the bet. Throws Error with a message the UI can show.
 export function addBet(pool, playerNumber, personName, horseIds, amount) {
-  if (!(playerNumber >= 1)) throw new Error("Player number must be 1 or greater");
-  if (!(amount > 0)) throw new Error("Wager must be positive");
+  if (!(playerNumber >= 1)) throw new Error(STATUS.zeroPlayer);
+  if (!(amount > 0)) throw new Error(STATUS.zeroWager);
   const ids = [...horseIds];
   if (!ids.length || ids.length > MAX_PARLAY_LEGS) {
-    throw new Error("Pick 1 horse to win, or 2–3 horses in finish order");
+    throw new Error(STATUS.legs);
   }
-  if (new Set(ids).size !== ids.length) throw new Error("Parlay legs must be different horses");
+  if (new Set(ids).size !== ids.length) throw new Error(STATUS.dupHorse);
 
   const name = rememberPlayer(pool, playerNumber, personName);
 

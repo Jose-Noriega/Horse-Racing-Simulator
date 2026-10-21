@@ -10,10 +10,12 @@ import {
 } from "./art.js";
 import { drawPortrait, drawBookie, drawHorse, makeDemoHorse } from "./characters.js";
 import { bookieLine, shakeOffset, poolBump, drawBettingFx } from "./fx.js";
+import { BADGES, CORNER_TITLE, DNF_NOTE, isMistake, NO_BETS, NO_BETS_BUBBLE, PICK_HINT, PLATES, REFUND_BUBBLE, SUMMARY_NONE } from "./words.js";
 
 const W = settings.SCREEN_WIDTH;
 const H = settings.SCREEN_HEIGHT;
 const N = settings.HORSES_PER_RACE;
+const BADGE = BADGES[Math.floor(Math.random() * BADGES.length)]; // the menu burst, picked once per page load
 const RACES = settings.RACES_PER_SESSION;
 
 const BUTTON_KIND = {
@@ -95,6 +97,20 @@ function paintBetBackdrop(c) {
 }
 
 // The wooden counter along the bottom. Drawn after the bookie so he stands behind it.
+// Left edges for the brass plates. Right-aligned to the screen edge with a gap,
+// so a longer label pushes the others left.
+function plateXs(labels) {
+  const w = (l) => l.length * 7.6 + 16;
+  let x = 1278;
+  const out = [];
+  for (let k = labels.length - 1; k >= 0; k--) {
+    x -= w(labels[k]);
+    out[k] = [k === 0 ? 40 : x, labels[k]];
+    x -= 8;
+  }
+  return out;
+}
+
 function paintCounter(c) {
   const top = 676;
   const wood = c.createLinearGradient(0, top, 0, H);
@@ -130,7 +146,7 @@ function paintCounter(c) {
   c.strokeStyle = INK;
   c.stroke();
   // brass plates
-  for (const [x, label] of [[40, "WINDOW 3"], [1080, "NO REFUNDS*"], [1190, "*SOMETIMES"]]) {
+  for (const [x, label] of plateXs(PLATES)) {
     c.beginPath();
     c.roundRect(x, 690, label.length * 7.6 + 16, 20, 4);
     c.fillStyle = "#e9c46a";
@@ -275,7 +291,7 @@ export function drawBettingScreen(g) {
   const picks = g.selectedLanes.map((i) => g.field[i]).filter(Boolean);
   const tag = picks.length > 1 ? "PARLAY" : "WIN";
   if (!picks.length) {
-    plainText(ctx, "Pick a horse from the list", 520, 220, 14, "#9a90b4", { bold: false });
+    plainText(ctx, PICK_HINT, 520, 220, 14, "#9a90b4", { bold: false });
   } else {
     const tw = textWidth(ctx, tag, 14, DISPLAY, false) + 16;
     ctx.beginPath();
@@ -325,15 +341,19 @@ export function drawBettingScreen(g) {
   const total = g.pool.bets.length;
   if (total > 8) plainText(ctx, `(+${total - 8} earlier)`, 846, 410, 12, "#7a6a30", { align: "right" });
   if (!total) {
-    plainText(ctx, "(none yet)", 548, 438, 15, "#8a7a40", { bold: false });
+    plainText(ctx, NO_BETS, 548, 438, 15, "#8a7a40", { bold: false });
   } else {
     const live = new Set(g.pool.bets);
     for (const k of g.betSeen.keys()) if (!live.has(k)) g.betSeen.delete(k);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(504, 398, 352, 188);
+    ctx.clip(); // rows slide in from the right, and used to run under the tote board
     g.pool.bets.slice(-8).forEach((bet, i) => {
       if (!g.betSeen.has(bet)) g.betSeen.set(bet, t);
       const a = easeOut((t - g.betSeen.get(bet)) / 0.3);
       const cy = 434 + i * 19;
-      const dx = Math.trunc((1 - a) * 60);
+      const dx = Math.trunc((1 - a) * 30);
       ctx.save();
       ctx.globalAlpha = a;
       ctx.translate(dx, 0);
@@ -348,6 +368,7 @@ export function drawBettingScreen(g) {
       plainText(ctx, `$${shortNum(bet.amount)}`, 846, cy, 13.5, "#1d6a2a", { align: "right" });
       ctx.restore();
     });
+    ctx.restore(); // the pad clip
   }
 
   // ---- right: the tote board
@@ -412,7 +433,7 @@ export function drawBettingScreen(g) {
     lines.forEach((ln, k) => plainText(ctx, ln, 180 + 235, by + 11 + 9.5 + k * 19, 16, INK, { align: "center" }));
   }
   if (g.statusMessage) {
-    const err = !/^(Win|Parlay) |^Bet undone|^Picks cleared/.test(g.statusMessage);
+    const err = isMistake(g.statusMessage);
     plainText(ctx, fitText(ctx, g.statusMessage, 584, 15.5), W / 2 + 4, 698, 15.5, err ? "#ff9d9d" : "#f2f2e4", { align: "center" });
   }
   drawBettingFx(g);
@@ -565,8 +586,8 @@ export function drawMenuScreen(g) {
   c.rotate(-0.25 + Math.sin(t * 2) * 0.04);
   burst(c, 0, 0, 74, 54, 13, t * 0.4);
   inkFill(c, PAL.red, 3.2);
-  inkText(c, "NOW WITH", 0, -14, 17, "#fff", { align: "center", sw: 3.5 });
-  inkText(c, `${settings.TOTAL_HORSES} HORSES!`, 0, 9, 22, PAL.gold, { align: "center", sw: 4 });
+  inkText(c, BADGE[0], 0, -14, 17, "#fff", { align: "center", sw: 3.5 });
+  inkText(c, BADGE[1], 0, 9, BADGE[1].length > 11 ? 17 : 22, PAL.gold, { align: "center", sw: 4 });
   c.restore();
   // plank sign
   const sign = `${RACES} races, ${N} horses each`;
@@ -687,7 +708,7 @@ export function drawResultsScreen(g) {
 
   // the loser's corner
   panel(c, 40, 388, 560, 176, { fill: "#2c3250" });
-  inkText(c, "LOSER'S CORNER", 58, 407, 20, "#9fb4d8", { sw: 3.5 });
+  inkText(c, CORNER_TITLE, 58, 407, 20, "#9fb4d8", { sw: 3.5 });
   raincloud(c, 548, 406, t);
   const rest = ordered.slice(3);
   rest.forEach((h, i) => {
@@ -699,7 +720,7 @@ export function drawResultsScreen(g) {
     drawPortrait(c, h, x + 16, y, 30, { mood: dnf ? "dizzy" : "sad", t });
     const line = dnf ? `DNF  ${h.name}` : `${h.place}. ${h.name}`;
     plainText(c, fitText(c, line, 200, 15), x + 38, y - 7, 15, dnf ? "#ff8a8a" : "#e8ecff");
-    plainText(c, pct(h), x + 38, y + 10, 12, "#9fb4d8", { bold: false });
+    plainText(c, dnf ? DNF_NOTE : pct(h), x + 38, y + 10, 12, "#9fb4d8", { bold: false });
   });
 
   // receipt
@@ -730,7 +751,7 @@ export function drawResultsScreen(g) {
     const refund = g.poolRefunded;
     drawPortrait(c, ordered[ordered.length - 1], 760, 320, 130, { mood: "sad", t, bg: "#fff4d6" });
     bubble(c, 850, 262, 320, refund ? 94 : 70, 826, 300);
-    const lines = refund ? ["No winners.", "Wagers returned.", "That's horse racing!"] : ["No payouts.", "Nobody saw that coming."];
+    const lines = refund ? REFUND_BUBBLE : NO_BETS_BUBBLE;
     lines.forEach((ln, i) => plainText(c, ln, 1010, 288 + i * 22, i === 0 ? 20 : 15.5, i === 0 ? "#b0262c" : INK, { align: "center" }));
   } else {
     const rows = g.lastPayouts;
@@ -884,7 +905,7 @@ export function drawSummaryScreen(g) {
   if (!g.sessionPayouts.size) {
     drawPortrait(c, { id: 5, color: settings.HORSE_COLORS[0] }, 470, 330, 110, { mood: "sad", t });
     plainText(c, "No payouts.", 560, 320, 22, "#e8ecff");
-    plainText(c, "The house wins. There is no house.", 560, 350, 14, "#9fb4d8", { bold: false });
+    plainText(c, SUMMARY_NONE, 560, 350, 14, "#9fb4d8", { bold: false });
   } else {
     const ranked = [...g.sessionPayouts].sort((a, b) => b[1][1] - a[1][1]);
     const maxRows = 8;
