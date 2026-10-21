@@ -60,7 +60,8 @@ export class Game {
   constructor(canvas, { secret = false } = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
-    this.secret = secret; // ?secret: the horses that would finish after 4th blow up
+    this.secret = secret; // ?secret or type "boom" on the menu: horses after 4th blow up
+    this.secretKeys = ""; // last few letters typed on the menu
     this.sounds = new Sounds(N);
 
     // The canvas never draws straight to a mirror of itself. lastFrame is the
@@ -257,6 +258,15 @@ export class Game {
         this.undoBet();
       }
       return;
+    }
+    // Hidden toggle: type "boom" on the menu. Same as ?secret in the url.
+    if (this.state === "menu" && e.key.length === 1) {
+      this.secretKeys = (this.secretKeys + e.key.toLowerCase()).slice(-4);
+      if (this.secretKeys === "boom") {
+        this.secretKeys = "";
+        this.secret = !this.secret;
+        this.sounds.play("boom");
+      }
     }
     // Plain F too. F11 is the "Show Desktop" key on a Mac, so it never gets here.
     // Not on the betting screen, where the Name box types letters.
@@ -952,6 +962,7 @@ export class Game {
     this.btnStartCard.centerAt(W / 2, 400);
     this.drawButton(this.btnStartCard);
     this.centered("F9 mute   F fullscreen", FONT.small, settings.GRAY, H - 30);
+    if (this.secret) this.disc(W - 16, H - 16, 4, [120, 30, 30]); // faint tell that secret mode is on
   }
 
   drawBetting() {
