@@ -65,8 +65,8 @@ export const HORSE_COLORS = [
 // Hooves are a bed under all of it. A limiter on the master catches pile-ups.
 export const MIX_DB = {
   // events you should jump at
-  gunshot: -12,
-  boom: -13,
+  gunshot: -21, // was -12, too loud
+  boom: -22, // was -13, too loud
   fanfare: -24,
   // money + countdown
   register: -26,
