@@ -9,7 +9,9 @@ window.game = game; // handy in the console: watch it work
 
 // A reload mid-card throws away every bet. Ask first. (Hack: no saved state yet.)
 window.addEventListener("beforeunload", (e) => {
-  if (game.state !== "menu") e.preventDefault();
+  if (game.state === "menu" || game.state === "summary") return;
+  e.preventDefault();
+  e.returnValue = ""; // some browsers only honor this form
 });
 
 let last = performance.now();
