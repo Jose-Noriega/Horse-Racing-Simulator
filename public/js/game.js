@@ -30,7 +30,7 @@ const STARTER_POS = [380, 470]; // in the infield, just left of the start line
 const PICK_PITCH = [1, 1.26, 1.5]; // playback rate per parlay leg: root, major third, fifth
 const FINISH_DING_PITCH = [1, 1.122, 1.26]; // 2nd, 3rd, 4th place step up. 5th and later get a quiet tick
 const PHOTO_FINISH_SECS = 0.35; // winner's margin on screen, under this gets the camera sting
-const CHEER_GAP = 3.0; // least seconds between crowd cheer sounds. was 0.8, which was a constant wash
+const CHEER_DONE = 0.6; // an overtake cheer waits until the last one is this far through, so they don't stack into a wash
 const TICK_GAP = 0.09; // seconds between payout count-up ticks
 const SWISH_SCREENS = new Set(["menu", "betting", "results", "summary"]); // setup and race have their own cues
 
@@ -123,7 +123,7 @@ export class Game {
     this.finishSounded = new Set();
     this.lastTick = 0;
     this.payoutDinged = false;
-    this.lastCheerSound = -9; // time of the last crowd cheer sound
+    this.cheerBusyUntil = -9; // time before which an overtake cheer is not started
     this.crowdBump = 0; // 0..1, jumps to 1 on a cheer and fades. rides the crowd bed
 
     // Secret mode
@@ -497,7 +497,7 @@ export class Game {
     this.lastStep.clear();
     this.shotTime = null;
     this.payoutDinged = false;
-    this.lastCheerSound = -9;
+    this.cheerBusyUntil = -9;
     this.crowdBump = 0;
     this.sounds.stopBed(0.3);
     this.state = "setup";
@@ -600,12 +600,13 @@ export class Game {
     }
   }
 
-  // The crowd roars. Not more than once every CHEER_GAP seconds.
-  cheerSound() {
-    if (this.time - this.lastCheerSound < CHEER_GAP) return;
-    this.lastCheerSound = this.time;
+  // The crowd roars. "med" for an overtake, "big" for the winner. A big one always
+  // plays. A medium one waits if a cheer is still going.
+  cheerSound(kind = "med") {
+    if (kind === "med" && this.time < this.cheerBusyUntil) return;
     this.crowdBump = 1;
-    this.sounds.play("cheer");
+    const secs = this.sounds.playCheer(kind);
+    this.cheerBusyUntil = this.time + secs * CHEER_DONE;
   }
 
   // The constant crowd under the race. Louder as the leader nears the line, and
@@ -621,8 +622,8 @@ export class Game {
     this.sounds.play("gunshot");
     this.sounds.startBed();
     this.crowdBump = 1;
-    this.soundQueue.push([this.time + 0.25, "cheer"]); // the crowd answers the gun
-    this.lastCheerSound = this.time + 0.25;
+    this.soundQueue.push([this.time + 0.25, "cheerBig"]); // the crowd answers the gun
+    this.cheerBusyUntil = this.time + 4; // hack: it plays from the queue, so we don't know its length yet
     for (const h of this.field) this.cheer(h.id, 1.3);
   }
 
@@ -662,7 +663,7 @@ export class Game {
       if (horse.place === 1) {
         this.sounds.play("fanfare");
         this.cheer(horse.id, 3.5);
-        this.cheerSound();
+        this.cheerSound("big");
         // a photo finish gets a camera sting a beat after the fanfare starts
         const [first, second] = this.raceResult.ordered;
         if (second && (second.finishTime - first.finishTime) * this.raceTimeScale < PHOTO_FINISH_SECS) {

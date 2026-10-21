@@ -79,8 +79,10 @@ export const MIX_DB = {
   gate: -30,
   photo: -31,
   debris: -31,
-  cheer: -30, // the swell. a recording. was -34, raised now that a bed sits under it
-  bed: -35, // the constant crowd under the race. a recording loop. the game rides it 0.5 to 1. was -38, sat under the hooves
+  cheer: -30, // a medium swell on an overtake. a recording
+  cheerBig: -26, // the big one at the gun and for the winner. a recording. still under the gun at -21
+  bed: -35, // the constant crowd under the race. a 17.5 s recording loop. the game rides it 0.5 to 1
+  bedAlt: -40, // a second, shorter loop (7.2 s) under the first, so the repeat is hard to hear
   // UI
   error: -28,
   pick: -33,

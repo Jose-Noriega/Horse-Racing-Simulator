@@ -60,6 +60,7 @@ Design notes are in `BUILD_PLAN.txt`. What's next is in `TASKS.txt`.
 - Safari and ogg: if the hoof recordings don't decode, it falls back to a
   synthesized thud. Only tested in Chromium.
 
-Hoof sounds are Kenney Impact Sounds (CC0). The crowd is two CC0 recordings from
-Freesound: a stadium loop under the race (by stomachache) and a cheer swell that
-triggers on top (by SoundsExciting). See `public/assets/sounds/CREDITS.txt`.
+Hoof sounds are Kenney Impact Sounds (CC0). The crowd is real recordings: most of
+it is "Free Crowd Cheering Sounds" by Gregor Quendel (CC BY 4.0,
+https://www.gregorquendel.com), plus two CC0 clips from Freesound by
+SoundsExciting and stomachache. See `public/assets/sounds/CREDITS.txt`.

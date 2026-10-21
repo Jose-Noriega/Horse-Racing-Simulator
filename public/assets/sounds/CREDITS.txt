@@ -1,18 +1,28 @@
-cheer.mp3
+cheer_big1-4.mp3, cheer_med1, cheer_med2, cheer_med4, cheer_med5, crowd_bed_long.wav
+  Cut from "Free Crowd Cheering Sounds" by Gregor Quendel.
+  https://opengameart.org/content/free-crowd-cheering-sounds
+  https://www.gregorquendel.com
+  License: Creative Commons Attribution 4.0 (CC BY 4.0).
+  https://creativecommons.org/licenses/by/4.0/
+  Changes: cut from the long tracks (big1 from track 03, big2 from 04, big3
+  from 02, big4 from 08, med1 from 05, med2 from 06, med4 and med5 from 09,
+  the long bed from 10), made mono at 22.05 kHz, faded the ends. The bed is
+  crossfaded tail to head so it loops. Cheers are 56 kbps mp3.
+
+cheer_med3.mp3
   Cut from "Crowd Cheering" by SoundsExciting, Freesound, 2016.
   https://freesound.org/s/365132/
   License: Creative Commons 0 (public domain). No credit needed, given anyway.
-  https://creativecommons.org/publicdomain/zero/1.0/
-  What we did: took the site's mp3 preview (not the original wav), cut 2.1 s
-  around the loudest swell, made it mono at 22.05 kHz, faded the ends.
+  Changes: took the site's mp3 preview (not the original wav), cut 5.5 s, made
+  it mono at 22.05 kHz, faded the ends.
 
-crowd_bed.wav
+crowd_bed_short.wav
   Made from "Stadium Crowd" by stomachache, Freesound.
   https://freesound.org/s/274516/
   License: Creative Commons 0 (public domain). No credit needed, given anyway.
-  What we did: took the site's mp3 preview (not the original wav), made it
-  mono at 22.05 kHz, and crossfaded the last second into the first so it loops
-  without a click. 7.19 s long.
+  Changes: took the site's mp3 preview (not the original wav), made it mono at
+  22.05 kHz, and crossfaded the last second into the first so it loops without
+  a click. 7.19 s long.
 
 impact*.ogg
   Kenney Impact Sounds, CC0. See KENNEY_LICENSE.txt.

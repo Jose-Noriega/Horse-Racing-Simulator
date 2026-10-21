@@ -21,6 +21,10 @@ import { RATE, library, mix, normalize, resample, room, scale, setLoudness, synt
 const MAX_VOICES = 96; // every hoof is its own sound. ~50 overlap at full gallop
 const NUM_HIT_VARIANTS = 5;
 const SOUND_DIR = "assets/sounds/";
+// Real crowd recordings, see CREDITS.txt. 4.5 to 7.5 s each, cut from full cheers
+// so each one swells up and dies away on its own.
+const CHEERS_BIG = ["cheer_big1.mp3", "cheer_big2.mp3", "cheer_big3.mp3", "cheer_big4.mp3"];
+const CHEERS_MED = ["cheer_med1.mp3", "cheer_med2.mp3", "cheer_med3.mp3", "cheer_med4.mp3", "cheer_med5.mp3"];
 
 // Fetch + decode an ogg to mono floats at RATE. null if it isn't there or won't decode
 // (Safari ogg support varies).
@@ -47,6 +51,9 @@ export class Sounds {
     this.muted = false;
     this.ctx = null;
     this.buffers = {}; // name -> AudioBuffer
+    this.cheers = { big: [], med: [] }; // recordings, see CHEERS_* above
+    this.lastCheer = {}; // kind -> index of the one played last, so it isn't repeated
+    this.bedBuffers = []; // the crowd loops under the race
     this.steps = []; // [lane][variant] -> AudioBuffer
     this.active = new Set(); // playing sources, so mute can stop them
     this.duckAt = -1e9;
@@ -83,11 +90,24 @@ export class Sounds {
     }
     // The crowd is a real recording. Two tries at synthesizing it sounded bad.
     // If the file won't load there is simply no cheer.
-    const crowd = await loadMono(this.ctx, "cheer.mp3");
-    if (crowd) this.buffers.cheer = this.make(setLoudness(crowd, MIX_DB.cheer));
-    // The bed is a 7 s loop of stadium crowd noise. Its end crossfades into its start.
-    const bed = await loadMono(this.ctx, "crowd_bed.wav");
-    if (bed) this.bedBuffer = this.make(setLoudness(bed, MIX_DB.bed));
+    // Several different cheers so it never repeats the same one. "big" is for the
+    // gun and the winner, "med" for overtakes.
+    for (const [kind, files, db] of [
+      ["big", CHEERS_BIG, MIX_DB.cheerBig],
+      ["med", CHEERS_MED, MIX_DB.cheer],
+    ]) {
+      for (const file of files) {
+        const x = await loadMono(this.ctx, file);
+        if (x) this.cheers[kind].push(this.make(setLoudness(x, db)));
+      }
+    }
+    // Two loops under the race with different lengths (17.5 s and 7.2 s), so the
+    // pair takes ages to line up again and you can't hear the repeat. Each loop's
+    // end crossfades into its start.
+    for (const [file, db] of [["crowd_bed_long.wav", MIX_DB.bed], ["crowd_bed_short.wav", MIX_DB.bedAlt]]) {
+      const x = await loadMono(this.ctx, file);
+      if (x) this.bedBuffers.push(this.make(setLoudness(x, db)));
+    }
     await this.buildSteps();
     this.on = true;
   }
@@ -154,22 +174,42 @@ export class Sounds {
   play(name, volume = 1, rate = 1) {
     if (!this.on || this.muted) return;
     if (name === "gunshot" || name === "boom") this.duckAt = performance.now() / 1000;
-    if (!this.buffers[name]) return; // the cheer is a file, it can be missing
+    if (name === "cheer") return this.playCheer("med", volume);
+    if (name === "cheerBig") return this.playCheer("big", volume);
     this.voice(this.buffers[name], volume, 0, rate);
+  }
+
+  // One cheer from the pool. Never the same one twice in a row, and each play is a
+  // little different: pitch (and so length), loudness and where it sits left to right.
+  // Returns how long it runs in seconds, 0 if nothing played.
+  playCheer(kind, volume = 1) {
+    const pool = this.cheers[kind];
+    if (!this.on || this.muted || !pool.length) return 0;
+    let i = Math.floor(Math.random() * pool.length);
+    if (pool.length > 1 && i === this.lastCheer[kind]) i = (i + 1) % pool.length;
+    this.lastCheer[kind] = i;
+    const rate = 0.94 + 0.12 * Math.random();
+    this.voice(pool[i], volume * (0.85 + 0.3 * Math.random()), (Math.random() * 2 - 1) * 0.3, rate);
+    return pool[i].duration / rate;
   }
 
   // The crowd bed. A quiet loop under the whole race. The swells (the "cheer"
   // sound) sit on top of it. The game calls setBed every frame with 0..1.
   startBed() {
-    if (!this.on || !this.bedBuffer || this.bed) return;
-    const src = this.ctx.createBufferSource();
-    src.buffer = this.bedBuffer;
-    src.loop = true;
+    if (!this.on || !this.bedBuffers.length || this.bed) return;
     const gain = this.ctx.createGain();
     gain.gain.value = 0; // fades up from silence, no pop
-    src.connect(gain).connect(this.bus);
-    src.start();
-    this.bed = { src, gain };
+    gain.connect(this.bus);
+    const sources = this.bedBuffers.map((buffer) => {
+      const src = this.ctx.createBufferSource();
+      src.buffer = buffer;
+      src.loop = true;
+      src.connect(gain);
+      // start each loop at a random spot so no two races open the same way
+      src.start(0, Math.random() * buffer.duration);
+      return src;
+    });
+    this.bed = { sources, gain };
     this.bedLevel = 0;
   }
 
@@ -180,10 +220,10 @@ export class Sounds {
 
   stopBed(secs = 0.8) {
     if (!this.bed) return;
-    const { src, gain } = this.bed;
+    const { sources, gain } = this.bed;
     this.bed = null;
     gain.gain.setTargetAtTime(0, this.ctx.currentTime, secs / 4);
-    src.stop(this.ctx.currentTime + secs + 0.3);
+    for (const src of sources) src.stop(this.ctx.currentTime + secs + 0.3);
   }
 
   // One hoof hit. pan is -1 (left) to 1 (right).
