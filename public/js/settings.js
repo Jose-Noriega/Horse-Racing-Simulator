@@ -43,7 +43,7 @@ export const RED = [200, 40, 40];
 export const GOLD = [218, 165, 32];
 export const PANEL = [55, 55, 55];
 
-// Cycled for the starters. 6 horses per race just uses the first 6.
+// Stable coat colors assigned by horse ID.
 export const HORSE_COLORS = [
   [220, 50, 50],
   [50, 100, 220],

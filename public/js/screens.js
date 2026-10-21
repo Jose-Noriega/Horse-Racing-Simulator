@@ -3,6 +3,7 @@
 
 import * as settings from "./settings.js";
 import { amountOnWin, displayedTicketMultiplier, displayedWinMultiplier, formatPlayer, isParlay, totalPool } from "./betting.js";
+import { getHorse } from "./horses_data.js";
 import { shortNum } from "./ui.js";
 import {
   INK, PAL, BODY, DISPLAY, css, hash, easeOut, easeBack, clamp01,
@@ -562,7 +563,7 @@ export function drawMenuScreen(g) {
       const span = W + 360;
       const x = ((t * ln.v + (k * span) / ln.n + li * 170) % span) - 180;
       const id = (li * 3 + k) % settings.TOTAL_HORSES;
-      const horse = { id, color: settings.HORSE_COLORS[id % settings.HORSE_COLORS.length] };
+      const horse = getHorse(id);
       for (let d = 0; d < 3; d++) puff(c, x - 40 * ln.s - d * 14, ln.y + 14 - d * 3, (7 + d * 2) * ln.s * 0.8, [236, 208, 168], 0.7 - d * 0.18, true);
       drawHorse(c, x, ln.y, 0, horse, x / (36 * ln.s), true, { mood: "happy", face: "grin", t, scale: ln.s });
     }

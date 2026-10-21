@@ -380,9 +380,7 @@ export class Game {
   // --- flow ---------------------------------------------------------------
 
   loadCurrentField() {
-    this.field = getRaceFieldIds(this.raceIndex).map((id, i) =>
-      makeHorse(getHorse(id), settings.HORSE_COLORS[i % settings.HORSE_COLORS.length]),
-    );
+    this.field = getRaceFieldIds(this.raceIndex).map((id) => makeHorse(getHorse(id)));
     this.field.forEach((h, lane) => {
       h.laneIndex = lane;
     });

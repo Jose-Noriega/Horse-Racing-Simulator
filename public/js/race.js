@@ -48,13 +48,13 @@ export const PACE_KNOTS = 10; // fewer knots = longer surges. more = twitchy jit
 export const PACE_SWING = 0.6; // max +/- random wobble at a knot. Higher = more passing
 export const PACE_TILT = 2.0; // front-runners (fast early, fade) vs closers
 export const START_DRAG = 0.25; // everyone breaks a bit slow from the gate
-export const MAX_KICK = 0.8; // late surge is random in 0..MAX_KICK
+export const MAX_KICK = 0.8;
 
 export function assignPaceProfiles(horses, rng = Math.random) {
   const uniform = (a, b) => a + (b - a) * rng();
   for (const horse of horses) {
-    const kick = uniform(0, MAX_KICK);
-    const style = uniform(-1, 1); // -1 front-runner, +1 closer
+    const kick = Math.min(MAX_KICK, Math.max(0, horse.lateKick + uniform(-0.2, 0.2)));
+    const style = Math.min(1, Math.max(-1, horse.paceStyle + uniform(-0.15, 0.15)));
     horse.paceSpeeds = [];
     for (let i = 0; i < PACE_KNOTS; i++) {
       const t = i / (PACE_KNOTS - 1);

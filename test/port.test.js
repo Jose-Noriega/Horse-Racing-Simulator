@@ -18,12 +18,34 @@ import { shortNum } from "../public/js/ui.js";
 const ref = JSON.parse(readFileSync(new URL("./reference.json", import.meta.url)));
 const close = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9 * Math.max(1, Math.abs(b)), `${msg}: ${a} vs ${b}`);
 
-const field = getRaceFieldIds(0).map((id, k) => makeHorse(getHorse(id), settings.HORSE_COLORS[k]));
+const field = getRaceFieldIds(0).map((id) => makeHorse(getHorse(id)));
 const pWin = winProbabilities(field);
 const orderProb = (ids) => orderProbability(field, ids);
 
 test("roster speeds match", () => {
   ref.roster_speeds.forEach((s, i) => close(ROSTER[i].averageSpeed, s, `horse ${i}`));
+});
+
+test("horse colors and pace tendencies stay with roster identities", () => {
+  for (const horse of ROSTER) {
+    assert.deepEqual(makeHorse(horse).color, horse.color);
+    assert.ok(horse.color);
+    assert.ok(horse.paceStyle >= -1 && horse.paceStyle <= 1);
+    assert.ok(horse.lateKick >= 0 && horse.lateKick <= 0.8);
+  }
+  assert.equal(new Set(ROSTER.slice(0, 8).map((horse) => horse.color)).size, 8);
+});
+
+test("race-to-race pace variation preserves each horse's style", () => {
+  const horse = makeHorse(getHorse(6));
+  const style = horse.paceStyle;
+  const lateKick = horse.lateKick;
+  assignPaceProfiles([horse], () => 0.25);
+  const firstRace = [...horse.paceSpeeds];
+  assignPaceProfiles([horse], () => 0.75);
+  assert.notDeepEqual(horse.paceSpeeds, firstRace, "race-day pace still varies");
+  assert.equal(horse.paceStyle, style);
+  assert.equal(horse.lateKick, lateKick);
 });
 
 test("win + order probabilities match", () => {
