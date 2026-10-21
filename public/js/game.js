@@ -26,6 +26,14 @@ const FADE_SECONDS = 0.3;
 const DUST_LIFE = 0.6;
 const STARTER_POS = [380, 470]; // in the infield, just left of the start line
 
+// Sound timing + pitch
+const PICK_PITCH = [1, 1.26, 1.5]; // playback rate per parlay leg: root, major third, fifth
+const FINISH_DING_PITCH = [1, 1.122, 1.26]; // 2nd, 3rd, 4th place step up. 5th and later get a quiet tick
+const PHOTO_FINISH_SECS = 0.35; // winner's margin on screen, under this gets the camera sting
+const CHEER_GAP = 0.8; // least seconds between crowd cheer sounds, so passes don't pile up
+const TICK_GAP = 0.09; // seconds between payout count-up ticks
+const SWISH_SCREENS = new Set(["menu", "betting", "results", "summary"]); // setup and race have their own cues
+
 // pygame's default font is smaller than its point size says. This scale makes a
 // browser font land at about the same size on screen.
 const FONT_SCALE = 0.78;
@@ -115,6 +123,7 @@ export class Game {
     this.finishSounded = new Set();
     this.lastTick = 0;
     this.payoutDinged = false;
+    this.lastCheerSound = -9; // time of the last crowd cheer sound
 
     // Secret mode
     this.exploded = new Set();
@@ -192,13 +201,13 @@ export class Game {
   clickedSomething(pos) {
     const buttons = {
       menu: [this.btnStartCard],
-      betting: [this.btnPlaceBet, this.btnClearPicks, this.btnUndoBet, this.btnStartRace],
+      // Place Bet, Clear, Undo and the horse rows have their own sounds. No click on top.
+      betting: [this.btnStartRace],
       setup: this.countdown !== null ? [] : [this.btnGo, this.btnBack],
       results: [this.btnNext],
       summary: [this.btnSummaryMenu],
     }[this.state] ?? [];
-    if (buttons.some((b) => b.hit(pos))) return true;
-    return this.state === "betting" && this.laneRects.some((r) => r.hit(pos));
+    return buttons.some((b) => b.hit(pos));
   }
 
   handleClick(pos) {
@@ -219,6 +228,7 @@ export class Game {
         else if (this.btnClearPicks.hit(pos)) {
           this.selectedLanes = [];
           this.statusMessage = "Picks cleared.";
+          this.sounds.play("clear");
         } else if (this.btnUndoBet.hit(pos)) this.undoBet();
         else if (this.btnStartRace.hit(pos)) this.openSetup();
         return;
@@ -403,29 +413,38 @@ export class Game {
     if (idx >= 0) {
       // Clicking an already-picked horse drops it and later legs.
       this.selectedLanes = this.selectedLanes.slice(0, idx);
+      this.sounds.play("undo");
       return;
     }
     if (this.selectedLanes.length >= settings.MAX_PARLAY_LEGS) {
-      this.statusMessage = `Max ${settings.MAX_PARLAY_LEGS} horses in a parlay.`;
+      this.fail(`Max ${settings.MAX_PARLAY_LEGS} horses in a parlay.`);
       return;
     }
     this.selectedLanes.push(lane);
+    // each leg steps up the scale: root, major third, fifth
+    this.sounds.play("pick", 1, PICK_PITCH[this.selectedLanes.length - 1] ?? 1);
+  }
+
+  // Show a message and play the error buzz.
+  fail(message) {
+    this.statusMessage = message;
+    this.sounds.play("error");
   }
 
   placeBet() {
-    if (!this.field.length) return void (this.statusMessage = "No field loaded.");
-    if (!this.selectedLanes.length) return void (this.statusMessage = "Pick a horse first.");
+    if (!this.field.length) return this.fail("No field loaded.");
+    if (!this.selectedLanes.length) return this.fail("Pick a horse first.");
     const playerNumber = parseInt(this.playerText, 10);
-    if (Number.isNaN(playerNumber)) return void (this.statusMessage = "Enter a player number.");
+    if (Number.isNaN(playerNumber)) return this.fail("Enter a player number.");
     const amount = parseFloat(this.wagerText);
-    if (Number.isNaN(amount)) return void (this.statusMessage = "Enter a valid wager amount.");
+    if (Number.isNaN(amount)) return this.fail("Enter a valid wager amount.");
     const horseIds = this.selectedLanes.map((i) => this.field[i].id);
     const names = this.selectedLanes.map((i) => this.field[i].name);
     let bet;
     try {
       bet = addBet(this.pool, playerNumber, this.nameText, horseIds, amount);
     } catch (err) {
-      this.statusMessage = err.message;
+      this.fail(err.message);
       return;
     }
     const kind = isParlay(bet) ? "Parlay" : "Win";
@@ -436,7 +455,10 @@ export class Game {
   }
 
   undoBet() {
-    this.statusMessage = undoLast(this.pool) ? "Bet undone." : "Nothing to undo.";
+    if (undoLast(this.pool)) {
+      this.statusMessage = "Bet undone.";
+      this.sounds.play("undo");
+    } else this.fail("Nothing to undo.");
   }
 
   // First action: line horses up at the gate. Nothing moves yet.
@@ -474,8 +496,10 @@ export class Game {
     this.lastStep.clear();
     this.shotTime = null;
     this.payoutDinged = false;
+    this.lastCheerSound = -9;
     this.state = "setup";
     this.statusMessage = "";
+    this.sounds.play("gate"); // the gate clanks shut as the horses line up
   }
 
   // Second action: 3, 2, 1, then the race runs.
@@ -516,6 +540,7 @@ export class Game {
   goToResults() {
     this.applySettlements();
     this.state = "results";
+    if (this.poolRefunded) this.soundQueue.push([this.time + 0.4, "sad"]); // nobody won, wah wah
   }
 
   advanceFromResults() {
@@ -557,23 +582,32 @@ export class Game {
     this.soundQueue = this.soundQueue.filter((s) => s[0] > this.time);
     for (const [, name] of due) this.sounds.play(name);
 
-    // payout numbers count up with a tick, then a ding
+    // payout numbers count up with a tick, then the cash register
     if (this.state === "results" && this.lastPayouts.length && !this.poolRefunded) {
       const age = this.time - this.stateStart;
       const end = 0.5 + 1.2 + 0.3 * (this.lastPayouts.length - 1);
-      if (age > 0.5 && age < end && this.time - this.lastTick > 0.07) {
+      if (age > 0.5 && age < end && this.time - this.lastTick > TICK_GAP) {
         this.lastTick = this.time;
         this.sounds.play("tick");
       } else if (age >= end && !this.payoutDinged) {
         this.payoutDinged = true;
-        this.sounds.play("ding", 0.7);
+        this.sounds.play("register");
       }
     }
+  }
+
+  // The crowd roars. Not more than once every CHEER_GAP seconds.
+  cheerSound() {
+    if (this.time - this.lastCheerSound < CHEER_GAP) return;
+    this.lastCheerSound = this.time;
+    this.sounds.play("cheer");
   }
 
   raceStarted() {
     this.shotTime = this.time;
     this.sounds.play("gunshot");
+    this.soundQueue.push([this.time + 0.25, "cheer"]); // the crowd answers the gun
+    this.lastCheerSound = this.time + 0.25;
     for (const h of this.field) this.cheer(h.id, 1.3);
   }
 
@@ -602,6 +636,7 @@ export class Game {
     for (const [passer, passed] of passes) {
       if (this.exploded.has(passed) || progress[passer] < 0.03) continue;
       this.cheer(passer, 1.4);
+      this.cheerSound();
     }
   }
 
@@ -612,7 +647,16 @@ export class Game {
       if (horse.place === 1) {
         this.sounds.play("fanfare");
         this.cheer(horse.id, 3.5);
-      } else this.sounds.play("ding", 0.7);
+        this.cheerSound();
+        // a photo finish gets a camera sting a beat after the fanfare starts
+        const [first, second] = this.raceResult.ordered;
+        if (second && (second.finishTime - first.finishTime) * this.raceTimeScale < PHOTO_FINISH_SECS) {
+          this.soundQueue.push([this.time + 0.4, "photo"]);
+        }
+      } else if (horse.place <= 4) {
+        // 2nd to 4th step up the scale. The rest are just a quiet tick, seven dings in a row was a lot.
+        this.sounds.play("ding", 0.6, FINISH_DING_PITCH[horse.place - 2]);
+      } else this.sounds.play("tick");
     }
   }
 
@@ -621,6 +665,7 @@ export class Game {
   // Blow these horses up. They stop running and stay out of the finish board.
   explode(horses) {
     if (this.boomTime === null) this.boomTime = this.time;
+    if (horses.length) this.soundQueue.push([this.time + 0.3, "debris"]); // one rain of wreckage per blast
     horses.forEach((horse, k) => {
       const wait = -0.12 * k; // tiny stagger, negative age = waiting
       this.soundQueue.push([this.time + 0.12 * k, "boom"]);
@@ -691,7 +736,7 @@ export class Game {
       const n = Math.ceil(this.countdown);
       if (n > 0 && n !== this.lastBeep) {
         this.lastBeep = n;
-        this.sounds.play("beep");
+        this.sounds.play(n === 1 ? "beepLast" : "beep"); // the last one is higher, the gun is next
       }
       if (this.countdown <= 0) {
         this.countdown = null;
@@ -742,6 +787,7 @@ export class Game {
     const { ctx, canvas } = this;
     if (this.state !== this.drawnState) {
       this.stateStart = this.time;
+      if (this.drawnState !== null && SWISH_SCREENS.has(this.state)) this.sounds.play("swish");
       if (this.drawnState !== null) {
         this.fadeFrom = document.createElement("canvas");
         this.fadeFrom.width = this.lastFrame.width;
