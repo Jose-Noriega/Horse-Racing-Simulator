@@ -6,10 +6,10 @@ import { amountOnWin, displayedTicketMultiplier, displayedWinMultiplier, formatP
 import { shortNum } from "./ui.js";
 import {
   INK, PAL, BODY, DISPLAY, css, hash, easeOut, easeBack, clamp01,
-  panel, candyButton, inkText, plainText, fitText, wrapText, bubble, marquee, inkRect, inkCircle, inkStar, inkFill, textWidth,
+  getLayer, panel, candyButton, ribbon, inkText, plainText, fitText, wrapText, bubble, marquee, inkRect, inkCircle, inkStar, inkFill, textWidth,
 } from "./art.js";
 import { drawPortrait, drawBookie, quirks } from "./characters.js";
-import { getLayer, bookieLine, shakeOffset, poolBump, drawBettingFx } from "./fx.js";
+import { bookieLine, shakeOffset, poolBump, drawBettingFx } from "./fx.js";
 
 const W = settings.SCREEN_WIDTH;
 const H = settings.SCREEN_HEIGHT;
@@ -182,34 +182,11 @@ function drawBox(g, box, text, active, hint) {
   ctx.restore();
 }
 
-function drawRibbon(ctx, cx, cy, w, h, text) {
-  ctx.fillStyle = css(PAL.red);
-  for (const s of [-1, 1]) {
-    ctx.beginPath();
-    ctx.moveTo(cx + s * (w / 2 - 8), cy - h / 2 + 8);
-    ctx.lineTo(cx + s * (w / 2 + 34), cy - h / 2 + 8);
-    ctx.lineTo(cx + s * (w / 2 + 20), cy + 2 + 8);
-    ctx.lineTo(cx + s * (w / 2 + 34), cy + h / 2 + 8);
-    ctx.lineTo(cx + s * (w / 2 - 8), cy + h / 2 + 8);
-    ctx.closePath();
-    inkFill(ctx, "#a5262c", 3);
-  }
-  ctx.beginPath();
-  ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 6);
-  inkFill(ctx, PAL.red, 3.5);
-  ctx.beginPath();
-  ctx.roundRect(cx - w / 2 + 5, cy - h / 2 + 5, w - 10, h - 10, 3);
-  ctx.strokeStyle = "rgba(255,255,255,0.35)";
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  inkText(ctx, text, cx, cy + 1, 30, "#fff", { align: "center", sw: 5 });
-}
-
 export function drawBettingScreen(g) {
   const { ctx } = g;
   const t = g.time;
   ctx.drawImage(getLayer(g, "betbg", paintBetBackdrop), 0, 0, W, H);
-  drawRibbon(ctx, W / 2, 34, 300, 40, `RACE ${g.raceIndex + 1} OF ${RACES}`);
+  ribbon(ctx, W / 2, 34, 300, 40, `RACE ${g.raceIndex + 1} OF ${RACES}`);
 
   // ---- left: the field
   const fieldH = Math.max(520, 62 + N * 54 + 8);

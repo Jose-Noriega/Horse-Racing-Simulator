@@ -3,6 +3,7 @@
 // does (status messages, picks, state changes) and reacts.
 
 import { PAL, coin, inkText, easeOut, easeBack, clamp01, puff, inkStar } from "./art.js";
+import { updateRaceFx } from "./racefx.js";
 
 const IDLE_QUIPS = [
   "Hay's cheap. The odds are not.",
@@ -124,7 +125,10 @@ export function updateArt(g, dt) {
     }
     art.lastState = g.state;
   }
-  if (g.state !== "betting") return;
+  if (g.state !== "betting") {
+    updateRaceFx(g, dt);
+    return;
+  }
 
   if (art.mood !== "smug" && now > art.moodUntil) art.mood = "smug";
   if (g.selectedLanes.length !== art.lastSel) {
@@ -220,22 +224,4 @@ export function drawBettingFx(g) {
     inkText(ctx, s.text, 0, 2, 46, "#e8433a", { align: "center", sw: 0 });
     ctx.restore();
   }
-}
-
-// Cache an offscreen layer. draw(ctx2) paints in logical 1280x720 units.
-// Rebuilt when the canvas backing size changes. Hack: keyed by name only, so two
-// different looks need two names.
-export function getLayer(g, name, draw) {
-  const w = g.canvas.width;
-  const h = g.canvas.height;
-  const hit = g.art.cache[name];
-  if (hit && hit.canvas.width === w && hit.canvas.height === h) return hit.canvas;
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const c2 = canvas.getContext("2d");
-  c2.setTransform(g.pixelScale, 0, 0, g.pixelScale, 0, 0);
-  draw(c2);
-  g.art.cache[name] = { canvas };
-  return canvas;
 }

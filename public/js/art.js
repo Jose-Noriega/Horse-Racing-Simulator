@@ -58,6 +58,7 @@ export function inkFill(ctx, fill, width = 2.4) {
     ctx.fillStyle = css(fill);
     ctx.fill();
   }
+  if (!(width > 0)) return; // lineWidth 0 is ignored by canvas, so skip the stroke on purpose
   ctx.lineWidth = width;
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
@@ -139,9 +140,9 @@ export function inkHeart(ctx, x, y, s, fill, width = 2) {
 
 // Text with an ink outline. size is real px. baseline defaults to middle.
 export function inkText(ctx, str, x, y, size, fill = "#fff", opt = {}) {
-  const { align = "left", baseline = "middle", font = DISPLAY, sw = Math.max(2.2, size * 0.17), alpha = 1, stroke = INK } = opt;
+  const { align = "left", baseline = "middle", font = DISPLAY, sw = Math.max(2.2, size * 0.17), alpha = 1, stroke = INK, bold = false } = opt;
   ctx.save();
-  ctx.font = `${size}px ${font}`;
+  ctx.font = `${bold ? "bold " : ""}${size}px ${font}`;
   ctx.textAlign = align;
   ctx.textBaseline = baseline;
   ctx.globalAlpha = alpha;
@@ -425,4 +426,46 @@ export function puff(ctx, x, y, r, fill, alpha = 1, outline = true) {
     ctx.stroke();
   }
   ctx.restore();
+}
+
+// A red ribbon banner with swallowtail ends. cx, cy is the middle.
+export function ribbon(ctx, cx, cy, w, h, text, size = 30, fill = PAL.red) {
+  ctx.fillStyle = css(fill);
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(cx + s * (w / 2 - 8), cy - h / 2 + 8);
+    ctx.lineTo(cx + s * (w / 2 + 34), cy - h / 2 + 8);
+    ctx.lineTo(cx + s * (w / 2 + 20), cy + 2 + 8);
+    ctx.lineTo(cx + s * (w / 2 + 34), cy + h / 2 + 8);
+    ctx.lineTo(cx + s * (w / 2 - 8), cy + h / 2 + 8);
+    ctx.closePath();
+    inkFill(ctx, shade(fill, -0.3), 3);
+  }
+  ctx.beginPath();
+  ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 6);
+  inkFill(ctx, fill, 3.5);
+  ctx.beginPath();
+  ctx.roundRect(cx - w / 2 + 5, cy - h / 2 + 5, w - 10, h - 10, 3);
+  ctx.strokeStyle = "rgba(255,255,255,0.35)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  inkText(ctx, text, cx, cy + 1, size, "#fff", { align: "center", sw: 5 });
+}
+
+// Cache an offscreen layer. draw(ctx2) paints in logical 1280x720 units.
+// Rebuilt when the canvas backing size changes. Hack: keyed by name only, so two
+// different looks need two names.
+export function getLayer(g, name, draw) {
+  const w = g.canvas.width;
+  const h = g.canvas.height;
+  const hit = g.art.cache[name];
+  if (hit && hit.canvas.width === w && hit.canvas.height === h) return hit.canvas;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const c2 = canvas.getContext("2d");
+  c2.setTransform(g.pixelScale, 0, 0, g.pixelScale, 0, 0);
+  draw(c2);
+  g.art.cache[name] = { canvas };
+  return canvas;
 }

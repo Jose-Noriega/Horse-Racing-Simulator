@@ -14,10 +14,11 @@ import { getRaceFieldIds } from "./race_card.js";
 import { drawOvalTrack, laneProgress, pointOnLane } from "./track.js";
 import { buildCrowd, detectPasses, drawCrowd } from "./crowd.js";
 import { Sounds } from "./sounds.js";
-import { drawHorse, drawStarter, footfallCount, stridePhase } from "./sprites.js";
+import { drawStarter, footfallCount, stridePhase } from "./sprites.js";
 import { rgb, shortNum } from "./ui.js";
 import { createArt, updateArt } from "./fx.js";
 import { drawBettingScreen, drawButtonArt } from "./screens.js";
+import { drawRaceScreen, drawSetupArt, drawFieldArt, drawBoomArt, drawFinishBoardArt, drawPopArt, drawFadeArt } from "./racefx.js";
 
 const { SCREEN_WIDTH: W, SCREEN_HEIGHT: H, HORSES_PER_RACE: N, RACES_PER_SESSION: RACES } = settings;
 
@@ -777,22 +778,7 @@ export class Game {
 
   // Cross-fade from the last frame of the previous screen.
   drawFade() {
-    const { ctx } = this;
-    if (this.fadeFrom) {
-      const t = (this.time - this.fadeStart) / FADE_SECONDS;
-      if (t >= 1) this.fadeFrom = null;
-      else {
-        ctx.save();
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.globalAlpha = 1 - t;
-        ctx.drawImage(this.fadeFrom, 0, 0);
-        ctx.restore();
-      }
-    }
-    // copy AFTER the fade so a fast second switch fades from what was on screen
-    const lc = this.lastFrame.getContext("2d");
-    lc.setTransform(1, 0, 0, 1, 0, 0);
-    lc.drawImage(this.canvas, 0, 0);
+    drawFadeArt(this);
   }
 
   // --- drawing helpers ----------------------------------------------------
@@ -919,183 +905,28 @@ export class Game {
   }
 
   drawRace() {
-    const { ctx } = this;
-    // Rattle the whole frame for a moment after the first blast.
-    let shaking = false;
-    if (this.boomTime !== null) {
-      const t = (this.time - this.boomTime) / 0.7;
-      if (t < 1) {
-        const amp = 8 * (1 - t);
-        this.fill([0, 0, 0]);
-        ctx.save();
-        ctx.translate(Math.trunc(rand(-amp, amp)), Math.trunc(rand(-amp, amp)));
-        shaking = true;
-      }
-    }
-
-    drawOvalTrack(ctx);
-    drawCrowd(ctx, this.crowd, this.cheerLevel, this.time);
-    this.drawStarter();
-    this.text(`Race ${this.raceIndex + 1} of ${RACES}`, 24, 12, FONT.large, settings.GOLD);
-
-    let timer = "FINISH!";
-    if (!this.raceFinished) {
-      const s = Math.trunc(this.raceElapsed);
-      timer = `${Math.trunc(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-    }
-    this.text(timer, W - 140, 16, FONT.medium, settings.WHITE);
-
-    this.drawHorses();
-    this.drawBoom();
-    this.drawFinishBoard();
-    const goAge = this.time - this.stateStart;
-    if (goAge < 0.6) this.drawPop("GO!", goAge / 0.6);
-
-    this.centered(this.raceFinished ? "Click for results" : "Click to skip", FONT.small, settings.WHITE, H - 9);
-    if (shaking) ctx.restore();
+    drawRaceScreen(this);
   }
 
   drawBoom() {
-    const { ctx } = this;
-    for (const b of this.blasts) {
-      if (b.age <= 0) continue;
-      const t = b.age / 0.6;
-      if (t < 0.35) {
-        // white flash, quick
-        const r = Math.trunc(14 + (70 * t) / 0.35);
-        ctx.beginPath();
-        ctx.arc(b.x, b.y - 6, r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,245,200,${(230 * (1 - t / 0.35)) / 255})`;
-        ctx.fill();
-      }
-      // shockwave ring
-      const rr = Math.trunc(10 + 120 * (1 - (1 - t) ** 2));
-      ctx.beginPath();
-      ctx.arc(b.x, b.y - 6, rr, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(255,255,255,${(160 * (1 - t)) / 255})`;
-      ctx.lineWidth = 3;
-      ctx.stroke();
-    }
-
-    // smoke under fire under debris
-    for (const kind of ["smoke", "fire", "debris"]) {
-      for (const p of this.sparks) {
-        if (p.kind !== kind || p.age <= 0) continue;
-        const f = p.age / p.life;
-        const x = Math.trunc(p.x);
-        const y = Math.trunc(p.y);
-        if (kind === "smoke") {
-          ctx.beginPath();
-          ctx.arc(x, y, Math.trunc(p.r * (1 + 1.5 * f)), 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(60,60,60,${(150 * (1 - f)) / 255})`;
-          ctx.fill();
-        } else if (kind === "fire") {
-          // yellow -> orange -> red -> dark
-          const stops = [[255, 240, 120], [255, 150, 30], [200, 50, 20], [50, 40, 40]];
-          const pos = f * (stops.length - 1);
-          const i = Math.min(stops.length - 2, Math.trunc(pos));
-          const c = stops[i].map((v, k) => Math.trunc(v + (stops[i + 1][k] - v) * (pos - i)));
-          this.disc(x, y, Math.max(1, Math.trunc(p.r * (1 - 0.7 * f))), c);
-        } else {
-          ctx.fillStyle = rgb(p.color);
-          ctx.fillRect(x - 2, y - 2, Math.trunc(p.r) + 1, Math.trunc(p.r) + 1);
-        }
-      }
-    }
+    drawBoomArt(this);
   }
 
   drawHorses() {
-    const { ctx } = this;
-    // Dust goes under the horses. Color fades into the dirt.
-    for (const [x, y, , , age] of this.dust) {
-      const f = age / DUST_LIFE;
-      const c = [225, 200, 160].map((a, k) => Math.trunc(a + (settings.DIRT[k] - a) * f));
-      this.disc(Math.trunc(x), Math.trunc(y), Math.trunc(2 + 4 * f), c);
-    }
-
-    // Draw backstretch horses first so homestretch reads on top
-    for (const horse of [...this.field].sort((a, b) => a.y - b.y)) {
-      if (this.exploded.has(horse.id)) continue;
-      const hx = Math.trunc(horse.x);
-      const hy = Math.trunc(horse.y);
-      const running = this.state === "race" && !horse.finished;
-      drawHorse(ctx, hx, hy, horse.heading, horse.color, stridePhase(horse.progress), running);
-
-      let alpha = 1;
-      let dy = 0;
-      if (this.state === "setup") {
-        // one lane after another, sliding down into place
-        alpha = easeOut((this.time - this.stateStart - 0.2 - horse.laneIndex * 0.08) / 0.35);
-        dy = Math.trunc((1 - alpha) * -14);
-      }
-      this.text(horse.name, hx, hy - 34 + dy, FONT.small, settings.WHITE, { align: "center", alpha });
-      if (horse.finished && horse.place) this.text(String(horse.place), hx, hy + 16, FONT.small, settings.GOLD, { align: "center" });
-    }
+    drawFieldArt(this);
   }
 
   // Horses show up here as they cross the line. Sits in the infield.
   drawFinishBoard() {
-    // place was set up front, and finish time follows place, so this is crossing order
-    const done = this.field.filter((h) => h.finished && !this.exploded.has(h.id)).sort((a, b) => (a.place || 99) - (b.place || 99));
-    if (!done.length) return;
-    const dnf = this.field.filter((h) => this.exploded.has(h.id)).sort((a, b) => (a.place || 99) - (b.place || 99));
-    const rowH = 22;
-    const pw = 260;
-    const ph = 30 + rowH * this.field.length;
-    const px = settings.TRACK_CENTER_X - pw / 2;
-    const py = settings.TRACK_CENTER_Y - ph / 2;
-    this.rrect(px, py, pw, ph, 8, settings.PANEL);
-    this.rrect(px, py, pw, ph, 8, null, settings.GOLD);
-    this.text("Finish", px + 12, py + 6, FONT.small, settings.GOLD);
-    [...done, ...dnf].forEach((horse, i) => {
-      const isDnf = this.exploded.has(horse.id);
-      const y = py + 30 + i * rowH;
-      if (!this.finishSeen.has(horse.id)) this.finishSeen.set(horse.id, this.time);
-      const ease = easeOut((this.time - this.finishSeen.get(horse.id)) / 0.4);
-      const dx = Math.trunc((1 - ease) * 80);
-      if (i === 0 && !isDnf) {
-        // winner row: gold bar that fades from bright to a soft glow
-        this.ctx.fillStyle = rgb(settings.GOLD, (110 - 60 * ease) / 255);
-        this.ctx.fillRect(px + 8 + dx, y - 2, pw - 16, rowH);
-      }
-      this.disc(px + 18 + dx, y + 8, 6, horse.color);
-      const label = isDnf ? `DNF  ${horse.name}` : `${i + 1}. ${horse.name}`;
-      this.text(label, px + 32 + dx, y, FONT.small, isDnf ? DNF_COLOR : settings.WHITE, { alpha: ease });
-      if (!isDnf) {
-        this.text(`${this.visualFinishTime(horse).toFixed(1)}s`, px + pw - 12 + dx, y, FONT.small, settings.LIGHT_GRAY, { align: "right", alpha: ease });
-      }
-    });
+    drawFinishBoardArt(this);
   }
 
   drawSetup() {
-    drawOvalTrack(this.ctx);
-    drawCrowd(this.ctx, this.crowd, this.cheerLevel, this.time);
-    this.drawStarter();
-    this.text(`Race ${this.raceIndex + 1} of ${RACES}`, 24, 12, FONT.large, settings.GOLD);
-    this.drawHorses();
-    if (this.countdown === null) {
-      this.drawButton(this.btnBack);
-      this.drawButton(this.btnGo, true);
-    } else {
-      // Big 3, 2, 1. Each number pops in large and shrinks + fades over its second.
-      const n = Math.ceil(this.countdown);
-      this.drawPop(String(n), n - this.countdown);
-    }
+    drawSetupArt(this);
   }
 
   drawPop(str, frac) {
-    const { ctx } = this;
-    const scale = 1 + 0.8 * (1 - easeOut(frac * 3)); // settles in the first third
-    ctx.save();
-    ctx.translate(settings.TRACK_CENTER_X, settings.TRACK_CENTER_Y);
-    ctx.scale(scale, scale);
-    ctx.globalAlpha = Math.max(0, 1 - Math.max(0, frac - 0.6) / 0.4);
-    this.setFont(FONT.countdown);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = rgb(settings.GOLD);
-    ctx.fillText(str, 0, 0);
-    ctx.restore();
+    drawPopArt(this, str, frac);
   }
 
   drawResults() {
