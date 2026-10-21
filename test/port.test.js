@@ -1,6 +1,7 @@
-// Checks the JS port against numbers dumped from the Python version.
-// Regenerate with: python3 web/test/python_reference.py > web/test/reference.json (from repo root)
-// Run with: npm test (from web/)
+// Checks the code against numbers frozen from the original Python version.
+// reference.json came from the pygame code (git 6d61b31). That code is gone, so
+// if the math changes on purpose, update the expected numbers by hand.
+// Run with: npm test
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -34,7 +35,7 @@ test("pace progress matches", () => {
   for (const [u, v] of Object.entries(ref.pace.points)) close(paceProgress(ref.pace.speeds, Number(u)), v, `pace ${u}`);
 });
 
-// Same scenario as python_reference.py
+// The scenario the reference numbers were made from
 function buildPool() {
   const pool = betting.newPool();
   betting.addBet(pool, 1, "Ann", [0], 10);
