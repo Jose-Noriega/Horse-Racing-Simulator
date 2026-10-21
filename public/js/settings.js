@@ -56,21 +56,40 @@ export const HORSE_COLORS = [
 ];
 
 // Sound mix. Tweak by ear.
-// Peak level of each sound on its own, in dBFS (0 = as loud as it gets).
-// The order is the point: the gun and the boom are the loudest events. Then the
-// fanfare. Then the tones. UI ticks are barely there. Short tones around 1-2 kHz
-// sound louder than a thud at the same peak, so they sit well below the gun.
-// A limiter on the master catches anything that stacks up.
+// How loud each sound is on its own, in dBFS. The number is the loudest 100 ms of
+// the sound (RMS), not the peak. A square-wave blip and a thud with the same peak
+// are not equally loud, so peak would have lied. A peak ceiling of -3 dBFS still
+// applies (see synth.setLoudness) so a short crack isn't shoved into the limiter.
+// The order is the point.
+//   gun + boom > fanfare > money + countdown > race effects > UI blips > UI ticks
+// Hooves are a bed under all of it. A limiter on the master catches pile-ups.
 export const MIX_DB = {
-  click: -28,
-  tick: -34,
-  coin: -22,
-  beep: -18,
-  ding: -22,
-  fanfare: -16,
-  gunshot: -6,
-  boom: -8,
-  step: -14, // one hoof, before the per-field scaling below
+  // events you should jump at
+  gunshot: -12,
+  boom: -13,
+  fanfare: -24,
+  // money + countdown
+  register: -26,
+  coin: -27,
+  beepLast: -26,
+  beep: -29,
+  sad: -27,
+  // race effects
+  ding: -29,
+  gate: -30,
+  photo: -31,
+  debris: -31,
+  cheer: -34,
+  // UI
+  error: -28,
+  pick: -33,
+  undo: -33,
+  clear: -33,
+  mute: -31,
+  swish: -36,
+  click: -36,
+  tick: -40,
+  step: -40, // one hoof, before the per-field scaling below
 };
 export const MIX = {
   master: 0.9, // 0..1 after the limiter's input
