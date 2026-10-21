@@ -802,6 +802,7 @@ export class Game {
     const { ctx, canvas } = this;
     if (this.state !== this.drawnState) {
       this.stateStart = this.time;
+      this.sounds.setMusicScreen(this.state);
       if (this.drawnState !== null && SWISH_SCREENS.has(this.state)) this.sounds.play("swish");
       if (this.drawnState !== null) {
         this.fadeCanvas.getContext("2d").drawImage(this.lastFrame, 0, 0);

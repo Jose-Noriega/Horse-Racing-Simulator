@@ -36,6 +36,17 @@ dot shows while it's on), or add `?secret` to the url.
 
 - Sounds: made in `public/js/synth.js`, levels in `MIX_DB` in `settings.js`.
   Open `/sounds.html` (on the dev server) to click through every sound.
+- Music: add looping MP3s to `public/assets/music/` named `menu.mp3`,
+  `betting.mp3`, `race.mp3`, `results.mp3`, and `summary.mp3`. The `race.mp3`
+  track plays during both setup and the race. Screen changes crossfade over
+  2.5 seconds. Music starts after the first keyboard or pointer gesture, follows
+  F9 mute, and missing tracks are reported in the browser console. See
+  `public/assets/music/README.md`.
+- Startup: a loading screen preloads sound files and the menu theme before
+  opening the menu.
+  Then “Click to enter” unlocks browser audio and starts the menu theme before
+  the player chooses Start Race Card. Missing audio files are reported in the
+  browser console but do not block play.
 
 - Horses: `public/js/roster_raw.js`
 - Race card: `public/js/race_card.js`

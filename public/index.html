@@ -16,10 +16,49 @@
       display: block;
       touch-action: manipulation;
     }
+    #loading {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      gap: 18px;
+      background: #000;
+      color: #fff;
+      font: bold 24px system-ui, sans-serif;
+    }
+    #loading[hidden] { display: none; }
+    #loading progress { width: min(320px, 70vw); height: 12px; accent-color: #e0ad3d; }
+    #start-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      background: #000b;
+    }
+    #start-overlay[hidden] { display: none; }
+    #start-button {
+      padding: 16px 30px;
+      border: 3px solid #e0ad3d;
+      border-radius: 12px;
+      background: #241a0b;
+      color: #fff;
+      font: bold 24px system-ui, sans-serif;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
   <div id="stage"><canvas id="game" width="1280" height="720"></canvas></div>
+  <div id="loading" role="status" aria-live="polite">
+    <div id="loading-label">Loading...</div>
+    <progress id="loading-progress" max="1" value="0"></progress>
+  </div>
+  <div id="start-overlay" hidden>
+    <button id="start-button" type="button">Click to enter</button>
+  </div>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

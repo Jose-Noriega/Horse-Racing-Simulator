@@ -17,22 +17,57 @@
 
 import { MIX, MIX_DB } from "./settings.js";
 import { RATE, library, mix, normalize, resample, room, scale, setLoudness, synthHit } from "./synth.js";
+import { Music } from "./music.js";
 
 const MAX_VOICES = 96; // every hoof is its own sound. ~50 overlap at full gallop
 const NUM_HIT_VARIANTS = 5;
-const SOUND_DIR = "assets/sounds/";
+const SOUND_DIR = new URL("../assets/sounds/", import.meta.url);
 // Real crowd recordings, see CREDITS.txt. 4.5 to 7.5 s each, cut from full cheers
 // so each one swells up and dies away on its own.
 const CHEERS_BIG = ["cheer_big1.mp3", "cheer_big2.mp3", "cheer_big3.mp3", "cheer_big4.mp3"];
 const CHEERS_MED = ["cheer_med1.mp3", "cheer_med2.mp3", "cheer_med3.mp3", "cheer_med4.mp3", "cheer_med5.mp3"];
+const SOUND_FILES = [
+  ...CHEERS_BIG,
+  ...CHEERS_MED,
+  "crowd_bed_long.wav",
+  "crowd_bed_short.wav",
+  ...Array.from({ length: NUM_HIT_VARIANTS }, (_, i) => {
+    const id = String(i).padStart(3, "0");
+    return [`impactSoft_medium_${id}.ogg`, `impactWood_light_${id}.ogg`];
+  }).flat(),
+];
+const soundAssets = new Map();
+
+async function fetchSound(name) {
+  if (!soundAssets.has(name)) {
+    soundAssets.set(name, fetch(new URL(name, SOUND_DIR)).then(async (res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.arrayBuffer();
+    }));
+  }
+  return soundAssets.get(name);
+}
+
+export async function preloadSoundAssets(onProgress = () => {}) {
+  let completed = 0;
+  await Promise.all(SOUND_FILES.map(async (name) => {
+    try {
+      await fetchSound(name);
+    } catch (error) {
+      soundAssets.set(name, null);
+      console.warn(`Sound asset unavailable (${name}):`, error);
+    }
+    onProgress(++completed, SOUND_FILES.length);
+  }));
+}
 
 // Fetch + decode an ogg to mono floats at RATE. null if it isn't there or won't decode
 // (Safari ogg support varies).
 async function loadMono(ctx, name) {
   try {
-    const res = await fetch(SOUND_DIR + name);
-    if (!res.ok) return null;
-    const buf = await ctx.decodeAudioData(await res.arrayBuffer());
+    const encoded = await fetchSound(name);
+    if (!encoded) return null;
+    const buf = await ctx.decodeAudioData(encoded.slice(0));
     const mono = new Float32Array(buf.length);
     for (let c = 0; c < buf.numberOfChannels; c++) {
       const data = buf.getChannelData(c);
@@ -58,6 +93,8 @@ export class Sounds {
     this.active = new Set(); // playing sources, so mute can stop them
     this.duckAt = -1e9;
     this.starting = null;
+    this.music = null;
+    this.musicScreen = null;
   }
 
   // Call from a click / keydown. Safe to call every time.
@@ -84,6 +121,9 @@ export class Sounds {
     this.limiter.attack.value = 0.003;
     this.limiter.release.value = 0.15;
     this.bus.connect(this.limiter).connect(this.ctx.destination);
+    this.music = new Music(this.ctx, this.bus);
+    this.music.setMuted(this.muted);
+    if (this.musicScreen) this.music.setScreen(this.musicScreen);
 
     for (const [name, samples] of Object.entries(library(MIX.wet))) {
       this.buffers[name] = this.make(setLoudness(samples, MIX_DB[name]));
@@ -110,6 +150,11 @@ export class Sounds {
     }
     await this.buildSteps();
     this.on = true;
+  }
+
+  setMusicScreen(screen) {
+    this.musicScreen = screen;
+    if (this.on) this.music.setScreen(screen);
   }
 
   // 5 hit variants, each pitched per lane. Room is added once per variant, then pitch-shifted.
@@ -240,6 +285,7 @@ export class Sounds {
     if (this.muted) for (const s of this.active) s.stop();
     else this.play("mute"); // a blip so you can tell it came back on
     this.setBed(this.bedLevel ?? 0); // the bed is not in `active`, so mute it here
+    this.music?.setMuted(this.muted);
     return this.muted;
   }
 }
