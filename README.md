@@ -48,8 +48,17 @@ Honest code (no DOM, no canvas): `race.js`, `betting.js`, `track.js` geometry,
 `test/reference.json` is numbers frozen from the original pygame version, so the
 port is checked against it. That Python code is in git history at `6d61b31`.
 
-Dishonest edge: `game.js` (state machine + all six screens on one 1280x720
-canvas), `sounds.js` (WebAudio), `main.js` (loop).
+Dishonest edge: `game.js` (state machine, input, race timing), `sounds.js`
+(WebAudio), `main.js` (loop).
+
+The look is all canvas code, no image files. `game.js` only calls into it:
+- `art.js` the Flash-style kit (ink outlines, panels, buttons, bubbles, text)
+- `characters.js` horses, portraits, the bookie. Each horse gets a hat and a face quirk from its id
+- `screens.js` menu, betting, results, summary
+- `racefx.js` race and setup screens, announcer quips, confetti, explosions, iris wipe
+- `scenery.js` the track and the world around it (cached), crowd gags, blimp
+- `fx.js` coins, stamps and the bookie's moods on the betting screen
+- `crowd.js` the fans (cached sprites), `sprites.js` stride timing and the starter
 
 Design notes are in `BUILD_PLAN.txt`. What's next is in `TASKS.txt`.
 
