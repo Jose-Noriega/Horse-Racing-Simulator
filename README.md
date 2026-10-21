@@ -34,6 +34,9 @@ dot shows while it's on), or add `?secret` to the url.
 
 ## Edit the game
 
+- Sounds: made in `public/js/synth.js`, levels in `MIX_DB` in `settings.js`.
+  Open `/sounds.html` (on the dev server) to click through every sound.
+
 - Horses: `public/js/roster_raw.js`
 - Race card: `public/js/race_card.js`
 - Horses per race, races per card, speeds, sound mix: `public/js/settings.js`

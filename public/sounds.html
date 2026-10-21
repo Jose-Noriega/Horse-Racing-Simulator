@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sound check</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🔊%3C/text%3E%3C/svg%3E">
+  <style>
+    body { margin: 0; padding: 24px; background: #282828; color: #ddd; font: 15px/1.4 "Helvetica Neue", Arial, sans-serif; }
+    h1 { color: #daa520; font-size: 22px; margin: 0 0 4px; }
+    p { margin: 0 0 16px; color: #999; max-width: 640px; }
+    .row { display: flex; align-items: center; gap: 12px; margin: 6px 0; }
+    button { background: #3e424c; color: #fff; border: 0; border-radius: 10px; padding: 8px 16px; font: inherit; cursor: pointer; min-width: 110px; text-align: left; }
+    button:hover { color: #daa520; }
+    .db { color: #888; font-size: 13px; min-width: 70px; }
+    .note { color: #777; font-size: 13px; }
+    h2 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #888; margin: 22px 0 6px; }
+  </style>
+</head>
+<body>
+  <h1>Sound check</h1>
+  <p>Every sound the game makes, one click each. Same code and levels as the game. Tell me which ones are bad by name.
+  The number is its loudness target in dBFS. Closer to 0 is louder.</p>
+  <div id="list"></div>
+  <script type="module">
+    import { Sounds } from "./js/sounds.js";
+    import { MIX_DB } from "./js/settings.js";
+
+    const sounds = new Sounds(8);
+    const groups = [
+      ["Events", ["gunshot", "boom", "fanfare", "photo", "sad", "register"]],
+      ["Countdown + race", ["beep", "beepLast", "gate", "cheer", "ding", "debris"]],
+      ["Betting", ["coin", "pick", "undo", "clear", "error"]],
+      ["UI", ["click", "tick", "swish", "mute"]],
+    ];
+    // sounds the game plays at other pitches
+    const rates = { pick: [1, 1.26, 1.5], ding: [1, 1.122, 1.26] };
+
+    const list = document.getElementById("list");
+    for (const [title, names] of groups) {
+      list.insertAdjacentHTML("beforeend", `<h2>${title}</h2>`);
+      for (const name of names) {
+        const row = document.createElement("div");
+        row.className = "row";
+        const make = (label, rate) => {
+          const b = document.createElement("button");
+          b.textContent = label;
+          b.onclick = async () => {
+            await sounds.unlock();
+            sounds.duckAt = -1e9;
+            sounds.play(name, 1, rate);
+          };
+          return b;
+        };
+        row.append(make(name, 1));
+        for (const r of (rates[name] ?? []).slice(1)) row.append(make(`${name} x${r}`, r));
+        row.insertAdjacentHTML("beforeend", `<span class="db">${MIX_DB[name]} dB</span>`);
+        list.append(row);
+      }
+    }
+    // The hoof bed on its own, the way it sounds mid-race
+    list.insertAdjacentHTML("beforeend", "<h2>Hooves</h2>");
+    const hoof = document.createElement("div");
+    hoof.className = "row";
+    const hb = document.createElement("button");
+    hb.textContent = "gallop 4 s";
+    let timer = null;
+    hb.onclick = async () => {
+      await sounds.unlock();
+      clearInterval(timer);
+      const start = performance.now();
+      const per = 8 * 6; // 8 horses, about 6 hooves a second each
+      timer = setInterval(() => {
+        if (performance.now() - start > 4000) return clearInterval(timer);
+        const lane = Math.floor(Math.random() * 8);
+        sounds.playStep(lane, 1 / Math.sqrt(8), (Math.random() * 2 - 1) * 0.8);
+      }, 1000 / per);
+    };
+    hoof.append(hb);
+    hoof.insertAdjacentHTML("beforeend", `<span class="db">${MIX_DB.step} dB each</span><span class="note">8 horses, random lanes, no gun</span>`);
+    list.append(hoof);
+  </script>
+</body>
+</html>

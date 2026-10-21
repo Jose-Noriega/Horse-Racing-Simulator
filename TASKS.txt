@@ -23,6 +23,8 @@ DONE
 
 NEXT
 --------------------------------------------------------------------------------
+  [ ] Listen to every sound at /sounds.html and flag the bad ones. The sound
+      pass was tuned by numbers only (no ears), so expect to retune synth.js
   [ ] Deploy. Run `npx wrangler login`, then `npm run deploy`
   [ ] Save the card to localStorage so a reload doesn't lose bets
   [ ] Phone support: real text inputs instead of canvas-drawn boxes
