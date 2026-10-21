@@ -72,6 +72,7 @@ export class Game {
     // The canvas never draws straight to a mirror of itself. lastFrame is the
     // previous screen's final image, for the cross-fade.
     this.lastFrame = document.createElement("canvas");
+    this.fadeCanvas = document.createElement("canvas"); // one, reused. a new one per screen change piled up
     this.fadeFrom = null;
     this.fadeStart = 0;
     this.drawnState = null;
@@ -160,7 +161,7 @@ export class Game {
     const box = this.canvas.getBoundingClientRect();
     const w = Math.max(1, Math.round((box.width || W) * dpr));
     const h = Math.max(1, Math.round((box.height || H) * dpr));
-    for (const c of [this.canvas, this.lastFrame]) {
+    for (const c of [this.canvas, this.lastFrame, this.fadeCanvas]) {
       c.width = w;
       c.height = h;
     }
@@ -805,10 +806,8 @@ export class Game {
       this.stateStart = this.time;
       if (this.drawnState !== null && SWISH_SCREENS.has(this.state)) this.sounds.play("swish");
       if (this.drawnState !== null) {
-        this.fadeFrom = document.createElement("canvas");
-        this.fadeFrom.width = this.lastFrame.width;
-        this.fadeFrom.height = this.lastFrame.height;
-        this.fadeFrom.getContext("2d").drawImage(this.lastFrame, 0, 0);
+        this.fadeCanvas.getContext("2d").drawImage(this.lastFrame, 0, 0);
+        this.fadeFrom = this.fadeCanvas;
         this.fadeStart = this.time;
       }
       this.drawnState = this.state;

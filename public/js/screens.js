@@ -146,7 +146,7 @@ function paintCounter(c) {
   c.strokeStyle = INK;
   c.stroke();
   // brass plates
-  for (const [x, label] of plateXs(PLATES)) {
+  /* for (const [x, label] of plateXs(PLATES)) {
     c.beginPath();
     c.roundRect(x, 690, label.length * 7.6 + 16, 20, 4);
     c.fillStyle = "#e9c46a";
@@ -159,7 +159,7 @@ function paintCounter(c) {
     c.textAlign = "left";
     c.textBaseline = "middle";
     c.fillText(label, x + 8, 700.5);
-  }
+  } */
 }
 
 // --- betting ---------------------------------------------------------------
