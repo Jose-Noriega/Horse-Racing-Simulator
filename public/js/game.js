@@ -16,6 +16,8 @@ import { buildCrowd, detectPasses, drawCrowd } from "./crowd.js";
 import { Sounds } from "./sounds.js";
 import { drawHorse, drawStarter, footfallCount, stridePhase } from "./sprites.js";
 import { rgb, shortNum } from "./ui.js";
+import { createArt, updateArt } from "./fx.js";
+import { drawBettingScreen, drawButtonArt } from "./screens.js";
 
 const { SCREEN_WIDTH: W, SCREEN_HEIGHT: H, HORSES_PER_RACE: N, RACES_PER_SESSION: RACES } = settings;
 
@@ -140,6 +142,7 @@ export class Game {
     this.wagerBox = new TextBox(520, 168, 160, 36);
     this.laneRects = [];
 
+    createArt(this); // art.js side: watches statusMessage, drives coins and the bookie
     this.loadCurrentField();
     this.bindEvents();
   }
@@ -680,6 +683,7 @@ export class Game {
   frame(dt) {
     this.time += dt;
     this.update(dt);
+    updateArt(this, dt);
     this.draw();
   }
 
@@ -855,75 +859,7 @@ export class Game {
   // Pressed = sunk in. Hack: real neomorphism wants the button to match its
   // background. Ours is a dark slate that reads OK on our dark screens.
   drawButton(btn, pulse = false) {
-    const { ctx } = this;
-    const m = this.mouse;
-    const over = btn.enabled && btn.hit(m);
-    const pressed = over && m.down;
-    if (over) this.hoverButton = true;
-    const glow = pulse ? 0.5 + 0.5 * Math.sin(this.time * 4) : 0;
-    let face = [62, 66, 76];
-    if (!btn.enabled) face = [52, 54, 60];
-    if (btn.enabled && over) face = face.map((c) => Math.min(255, c + 8));
-    if (btn.enabled && pressed) face = face.map((c) => Math.max(0, c - 14));
-    const r = 14;
-    const { x, y, w, h } = btn;
-
-    ctx.save();
-    if (btn.enabled && !pressed) {
-      ctx.shadowColor = "rgba(0,0,0,0.55)";
-      ctx.shadowBlur = 10;
-      ctx.shadowOffsetX = 4;
-      ctx.shadowOffsetY = 4;
-      this.rrect(x, y, w, h, r, face);
-      ctx.shadowColor = "rgba(255,255,255,0.12)";
-      ctx.shadowBlur = 8;
-      ctx.shadowOffsetX = -3;
-      ctx.shadowOffsetY = -3;
-      this.rrect(x, y, w, h, r, face);
-    }
-    ctx.restore();
-
-    if (glow > 0 && btn.enabled) {
-      for (let i = 1; i < 7; i++) {
-        ctx.beginPath();
-        ctx.roundRect(x - i * 1.5, y - i * 1.5, w + i * 3, h + i * 3, r + i);
-        ctx.strokeStyle = rgb(settings.GOLD, (glow * 70) / i / 255);
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
-    }
-
-    // face: vertical gradient, flipped when sunk in
-    let top = face.map((c) => Math.min(255, c + 12));
-    let bottom = face.map((c) => Math.max(0, c - 12));
-    if (pressed && btn.enabled) [top, bottom] = [bottom, top];
-    const grad = ctx.createLinearGradient(0, y, 0, y + h);
-    grad.addColorStop(0, rgb(top));
-    grad.addColorStop(1, rgb(bottom));
-    ctx.beginPath();
-    ctx.roundRect(x, y, w, h, r);
-    ctx.fillStyle = grad;
-    ctx.fill();
-
-    if (btn.enabled && pressed) {
-      // inner edge: dark on top-left, light on bottom-right
-      ctx.strokeStyle = "rgba(0,0,0,0.27)";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.strokeStyle = "rgba(255,255,255,0.16)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(x + r, y + h - 1);
-      ctx.lineTo(x + w - r, y + h - 1);
-      ctx.stroke();
-    }
-
-    const color = !btn.enabled ? [140, 140, 140] : over ? settings.GOLD : settings.WHITE;
-    this.setFont(FONT.medium);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = rgb(color);
-    ctx.fillText(btn.label, x + w / 2 + (pressed && btn.enabled ? 1 : 0), y + h / 2 + (pressed && btn.enabled ? 1 : 0));
+    drawButtonArt(this, btn, pulse);
   }
 
   drawTextBox(box, str, active) {
@@ -966,97 +902,7 @@ export class Game {
   }
 
   drawBetting() {
-    this.fill(settings.DARK_GRAY);
-    this.centered(`Race ${this.raceIndex + 1} of ${RACES}`, FONT.large, settings.GOLD, 36);
-
-    // Field panel
-    const fieldH = Math.max(520, 62 + N * 54 + 8);
-    this.rrect(24, 70, 460, fieldH, 8, settings.PANEL);
-    this.text("Pick finish order", 40, 84, FONT.medium, settings.WHITE);
-    this.text("1 horse = win, 2-3 = parlay", 40, 108, FONT.small, settings.GRAY);
-
-    this.laneRects = [];
-    let y = 132;
-    this.field.forEach((horse, i) => {
-      const rect = new TextBox(40, y, 420, 48);
-      this.laneRects.push(rect);
-      const pickIdx = this.selectedLanes.indexOf(i);
-      const pickRank = pickIdx >= 0 ? pickIdx + 1 : null;
-      this.rrect(rect.x, rect.y, rect.w, rect.h, 6, pickRank ? [75, 75, 55] : [48, 48, 48], pickRank ? settings.GOLD : null);
-      this.disc(rect.x + 24, rect.y + rect.h / 2, 12, horse.color);
-      this.text(`${pickRank ?? i + 1}. ${horse.name}`, rect.x + 48, rect.y + 8, FONT.small, settings.WHITE);
-      const pWin = this.winProbs[horse.id] ?? 0;
-      this.text(`Win chance ${(100 * pWin).toFixed(1)}%`, rect.x + 48, rect.y + 26, FONT.small, settings.LIGHT_GRAY);
-      y += 54;
-    });
-
-    // Bet form panel
-    this.rrect(500, 70, 360, 310, 8, settings.PANEL);
-    this.text("Player #", 520, 92, FONT.small, settings.GRAY);
-    this.text("Name", 620, 92, FONT.small, settings.GRAY);
-    this.drawTextBox(this.playerBox, this.playerText, this.activeField === "player");
-    this.drawTextBox(this.nameBox, this.nameText, this.activeField === "name");
-    this.text("Wager $", 520, 152, FONT.small, settings.GRAY);
-    this.drawTextBox(this.wagerBox, this.wagerText, this.activeField === "wager");
-
-    const pickNames = this.selectedLanes.map((i) => this.field[i].name);
-    let slip = "Picks: (none)";
-    if (pickNames.length === 1) slip = `Win: ${pickNames[0]}`;
-    else if (pickNames.length > 1) slip = `Parlay: ${pickNames.join(" > ")}`;
-    this.text(slip, 520, 210, FONT.small, settings.GOLD);
-    if (this.selectedLanes.length >= 2) {
-      const mult = displayedTicketMultiplier(
-        this.pool, this.selectedLanes.map((i) => this.field[i].id), this.field, this.winProbs,
-      );
-      if (mult) this.text(`Est. parlay ${mult.toFixed(2)}x`, 520, 228, FONT.small, settings.LIGHT_GRAY);
-    }
-    this.drawButton(this.btnPlaceBet);
-    this.drawButton(this.btnClearPicks);
-    this.btnUndoBet.enabled = this.pool.undoStack.length > 0;
-    this.drawButton(this.btnUndoBet);
-    this.drawButton(this.btnStartRace);
-
-    this.text("Bets", 520, 392, FONT.medium, settings.WHITE);
-    let betY = 418;
-    if (!this.pool.bets.length) this.text("(none yet)", 520, betY, FONT.small, settings.GRAY);
-    else {
-      const live = new Set(this.pool.bets);
-      for (const k of this.betSeen.keys()) if (!live.has(k)) this.betSeen.delete(k);
-      for (const bet of this.pool.bets.slice(-8)) {
-        const names = bet.horseIds.map((hid) => this.field.find((h) => h.id === hid)?.name ?? "?");
-        const line = `${isParlay(bet) ? "P" : "W"} ${formatPlayer(bet.playerNumber, bet.personName)} ${names.join(" > ")}  $${shortNum(bet.amount)}`;
-        if (!this.betSeen.has(bet)) this.betSeen.set(bet, this.time);
-        const a = easeOut((this.time - this.betSeen.get(bet)) / 0.3);
-        this.text(line, 520 + Math.trunc((1 - a) * 60), betY, FONT.small, settings.LIGHT_GRAY, { alpha: a });
-        betY += 20;
-      }
-    }
-
-    // Payout panel
-    this.rrect(880, 70, 370, Math.max(520, 106 + N * 42 + 12), 8, settings.PANEL);
-    this.text("Odds", 900, 84, FONT.medium, settings.WHITE);
-    this.text(`Total pool: $${shortNum(totalPool(this.pool))}`, 900, 118, FONT.small, settings.GOLD);
-    this.text("If this horse wins", 900, 148, FONT.small, settings.GRAY);
-    let payY = 176;
-    const wager = parseFloat(this.wagerText);
-    const exampleWager = Number.isNaN(wager) ? 0 : wager;
-    for (const horse of this.field) {
-      const onH = amountOnWin(this.pool, horse.id);
-      const odds = displayedWinMultiplier(this.pool, horse.id, this.winProbs, exampleWager > 0 ? exampleWager : 1);
-      let multStr = "—";
-      let exampleStr = "";
-      if (odds !== null) {
-        multStr = `${odds.toFixed(2)}x`;
-        if (exampleWager > 0) exampleStr = `  ($${shortNum(exampleWager, 0)}->$${shortNum(exampleWager * odds)})`;
-      }
-      this.disc(912, payY + 8, 8, horse.color);
-      this.text(horse.name.slice(0, 12), 928, payY, FONT.small, settings.LIGHT_GRAY);
-      this.text(multStr + exampleStr, 1030, payY, FONT.small, settings.LIGHT_GRAY);
-      if (onH > 0) this.text(`on 1st: $${shortNum(onH, 0)}`, 928, payY + 16, FONT.small, settings.GRAY);
-      payY += 42;
-    }
-
-    if (this.statusMessage) this.centered(this.statusMessage, FONT.small, settings.GREEN, H - 28);
+    drawBettingScreen(this);
   }
 
   drawStarter() {
