@@ -258,6 +258,12 @@ export class Game {
       }
       return;
     }
+    // Plain F too. F11 is the "Show Desktop" key on a Mac, so it never gets here.
+    // Not on the betting screen, where the Name box types letters.
+    if (e.key.toLowerCase() === "f" && this.state !== "betting") {
+      this.toggleFullscreen();
+      return;
+    }
     const go = e.key === "Enter" || e.key === " ";
     switch (this.state) {
       case "menu":
@@ -945,7 +951,7 @@ export class Game {
 
     this.btnStartCard.centerAt(W / 2, 400);
     this.drawButton(this.btnStartCard);
-    this.centered("F9 mute   F11 fullscreen", FONT.small, settings.GRAY, H - 30);
+    this.centered("F9 mute   F fullscreen", FONT.small, settings.GRAY, H - 30);
   }
 
   drawBetting() {

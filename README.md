@@ -27,7 +27,8 @@ test blocks the deploy.
 
 Click or type. `1`-`8` pick horses (while the Name box is active), `Tab` moves
 between boxes, `Enter` places the bet, `Ctrl+Z` undoes, `F5` starts the race,
-`F9` mutes, `F11` or `Alt+Enter` goes fullscreen.
+`F9` mutes. `F` (any screen but betting), `F11` or `Alt+Enter` goes fullscreen.
+On a Mac, F11 is taken by the system, so use `F` or `Option+Enter`.
 Add `?secret` to the url for the exploding-horses mode.
 
 ## Edit the game
