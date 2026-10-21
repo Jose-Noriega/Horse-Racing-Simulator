@@ -5,8 +5,9 @@
 import * as settings from "./settings.js";
 import { innerRailRadius, outerRailRadius, laneRadius, startProgress, pointOnRadius, pointOnLane } from "./track.js";
 import {
-  getLayer, INK, PAL, BODY, shade, hash, easeOut, clamp01, inkFill, inkCircle, inkEllipse, inkRect, inkLine, inkText, plainText, bubble, inkStar, puff,
+  getLayer, INK, PAL, BODY, shade, hash, easeOut, clamp01, inkFill, inkCircle, inkEllipse, inkRect, inkLine, inkText, plainText, bubble, inkStar, puff, textWidth,
 } from "./art.js";
+import { byRace, CHICKEN, DUCK, DUCK_EVERY, SPONSORS } from "./words.js";
 
 const W = settings.SCREEN_WIDTH;
 const H = settings.SCREEN_HEIGHT;
@@ -235,14 +236,6 @@ function paintTrack(c) {
 
 // --- the moving bits -------------------------------------------------------
 
-const SPONSORS = [
-  ["HAY-Z ENERGY", "GIVE YOUR OATS A DAY OFF"],
-  ["CLOP-A-COLA", "NOW WITH 40% MORE FIZZ"],
-  ["NEIGH-BORHOOD BANK", "YOUR MONEY, BUT HORSEY"],
-  ["SUGAR CUBE SODA", "NATURE'S CANDY"],
-  ["HOOF & MOUTH SALOON", "CLEAN GLASSES. MOSTLY."],
-];
-
 function cloudShadows(c, t) {
   c.fillStyle = "rgba(10,40,20,0.11)";
   for (let i = 0; i < 4; i++) {
@@ -280,7 +273,7 @@ function billboard(c, t) {
   c.restore();
 }
 
-function duck(c, t) {
+function duck(g, c, t) {
   const k = t * 0.5;
   const x = 440 + Math.cos(k) * 30;
   const y = 348 + Math.sin(k) * 9;
@@ -301,11 +294,13 @@ function duck(c, t) {
   c.arc(8, -8.4, 1, 0, Math.PI * 2);
   c.fill();
   c.restore();
-  // quack every so often
-  const q = t % 14;
-  if (q < 1.6) {
-    bubble(c, x - 22, y - 44, 44, 20, x, y - 14, { r: 8, line: 2, shadow: 2 });
-    plainText(c, "quack", x, y - 34, 11, INK, { align: "center" });
+  // The duck speaks now and then. The line changes with the race, and the duck gets stranger.
+  const q = t % DUCK_EVERY;
+  if (q < 2.4) {
+    const line = byRace(DUCK, g.raceIndex);
+    const bw = textWidth(c, line, 11) + 16;
+    bubble(c, x - bw / 2, y - 44, bw, 20, x, y - 14, { r: 8, line: 2, shadow: 2 });
+    plainText(c, line, x, y - 34, 11, INK, { align: "center" });
   }
 }
 
@@ -507,8 +502,10 @@ function chicken(g, c, t) {
   c.fill();
   c.restore();
   if (u > 0.25 && u < 0.75) {
-    bubble(c, x - 28, y - 56, 58, 22, x - 2, y - 20, { r: 8, line: 2, shadow: 2 });
-    plainText(c, "BAWK?!", x + 1, y - 45, 12, INK, { align: "center" });
+    const line = byRace(CHICKEN, g.raceIndex);
+    const bw = textWidth(c, line, 12) + 18;
+    bubble(c, x - bw / 2, y - 56, bw, 22, x - 2, y - 20, { r: 8, line: 2, shadow: 2 });
+    plainText(c, line, x, y - 45, 12, INK, { align: "center" });
   }
 }
 
@@ -520,7 +517,7 @@ export function drawScenery(g) {
   cloudShadows(c, t);
   flags(c, t);
   billboard(c, t);
-  duck(c, t);
+  duck(g, c, t);
   chicken(g, c, t);
 }
 
