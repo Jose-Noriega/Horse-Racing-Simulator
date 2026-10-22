@@ -6,8 +6,8 @@ export const TITLE = "Horse Racing Simulator";
 
 // Roster / card
 export const TOTAL_HORSES = 64;
-export const HORSES_PER_RACE = 8;
-export const RACES_PER_SESSION = 8;
+export const HORSES_PER_RACE = 5;
+export const RACES_PER_SESSION = 5;
 export const MAX_PARLAY_LEGS = 3;
 
 // Oval (stadium) track. One lap, counterclockwise.
