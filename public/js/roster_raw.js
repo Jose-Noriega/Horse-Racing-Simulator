@@ -29,7 +29,7 @@ export const ROSTER_RAW = [
   ["Megalopolis", 84.5],
   ["It Followed Me", 84.0],
   ["Who Let Him In", 83.65],
-  ["The Abyss", 83.5]
+  ["The Abyss", 83.5],
   ["Lowkenuine", 83.0],
   ["Wavefunction", 82.0],
   ["Door Is Open", 81.95],
