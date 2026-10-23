@@ -102,9 +102,9 @@ test("win odds start at fair odds and move continuously with the tote pool", () 
 test("settlement matches, incl. refund when nobody hits", () => {
   const pool = buildPool();
   const cases = {
-    settle_win0: [0, 1, 2, 3, 4, 5, 6, 7],
-    settle_parlay3: [2, 0, 1, 3, 4, 5, 6, 7],
-    settle_none: [7, 6, 5, 4, 3, 2, 1, 0],
+    settle_win0: [0, 1, 2, 3, 4],
+    settle_parlay3: [2, 0, 1, 3, 4],
+    settle_none: [4, 3, 2, 1, 0],
   };
   for (const [key, finish] of Object.entries(cases)) {
     const want = ref[key];
@@ -160,11 +160,11 @@ test("simulateRace: seeded, ordered, favorites win more", () => {
   const runs = 2000;
   for (let i = 0; i < runs; i++) {
     const { ordered } = simulateRace(field, { rng });
-    assert.deepEqual(ordered.map((h) => h.place), [1, 2, 3, 4, 5, 6, 7, 8]);
+    assert.deepEqual(ordered.map((h) => h.place), field.map((_, i) => i + 1));
     if (ordered[0].id === 0) wins++;
   }
   // horse 0 is the favorite. Its sampled win rate should sit near the softmax number (loose, they are different models).
-  assert.ok(wins / runs > 1 / 8, `favorite won ${wins}/${runs}`);
+  assert.ok(wins / runs > 1 / field.length, `favorite won ${wins}/${runs}`);
 });
 
 test("pace profiles: every curve reaches 1 and never goes backwards", () => {
