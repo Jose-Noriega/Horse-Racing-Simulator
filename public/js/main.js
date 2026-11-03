@@ -26,12 +26,7 @@ const canvas = document.getElementById("game");
 const game = new Game(canvas, { secret: new URLSearchParams(location.search).has("secret") });
 window.game = game; // handy in the console: watch it work
 game.sounds.setMusicScreen(game.state);
-const startOverlay = document.getElementById("start-overlay");
-startOverlay.hidden = false;
-document.getElementById("start-button").addEventListener("click", () => {
-  game.sounds.unlock();
-  startOverlay.hidden = true;
-});
+// Browsers block audio until a gesture. The game unlocks it on the first key or click.
 
 // A reload mid-card throws away every bet. Ask first. (Hack: no saved state yet.)
 window.addEventListener("beforeunload", (e) => {

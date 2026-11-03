@@ -29,6 +29,8 @@ const BUTTON_KIND = {
   "Next Race": "gold",
   "View Card Summary": "gold",
   "Back to Menu": "blue",
+  "Last Results": "blue",
+  "Back": "blue",
   "Start Race Card": "gold",
 };
 
@@ -44,6 +46,32 @@ export function drawButtonArt(g, btn, pulse = false) {
     pulse: pulse ? 0.5 + 0.5 * Math.sin(g.time * 4) : 0,
     size: btn.h >= 44 ? 24 : 19,
   });
+}
+
+// The BETS pad: where the mouse wheel scrolls it, and how many rows fit.
+export const BET_ROWS = 8;
+export const BET_PAD = { x: 500, y: 388, w: 360, h: 202, hit(p) { return p.x >= 500 && p.x < 860 && p.y >= 388 && p.y < 590; } };
+
+// Small up/down arrow button for the pad header.
+function scrollArrow(ctx, r, up, enabled, over) {
+  ctx.beginPath();
+  ctx.roundRect(r.x, r.y, r.w, r.h, 5);
+  inkFill(ctx, enabled ? (over ? PAL.gold : PAL.blue) : "#c9c0a0", 2);
+  const cx = r.x + r.w / 2;
+  const cy = r.y + r.h / 2;
+  ctx.beginPath();
+  if (up) {
+    ctx.moveTo(cx - 5, cy + 3);
+    ctx.lineTo(cx + 5, cy + 3);
+    ctx.lineTo(cx, cy - 4);
+  } else {
+    ctx.moveTo(cx - 5, cy - 3);
+    ctx.lineTo(cx + 5, cy - 3);
+    ctx.lineTo(cx, cy + 4);
+  }
+  ctx.closePath();
+  ctx.fillStyle = enabled ? "#fff" : "#f4efdc";
+  ctx.fill();
 }
 
 // Plain rect with a hit test. Same shape as the game's TextBox, so game.js can use it.
@@ -204,6 +232,9 @@ export function drawBettingScreen(g) {
   const t = g.time;
   ctx.drawImage(getLayer(g, "betbg", paintBetBackdrop), 0, 0, W, H);
   ribbon(ctx, W / 2, 34, 300, 40, `RACE ${g.raceIndex + 1} OF ${RACES}`);
+  // back to the race before this one. Hidden (and unclickable) on race 1
+  g.btnLastResults.enabled = g.raceIndex > 0 && !!g.lastRaceView;
+  if (g.btnLastResults.enabled) drawButtonArt(g, g.btnLastResults);
 
   // ---- left: the field
   const fieldH = Math.max(520, 62 + N * 54 + 8);
@@ -340,7 +371,21 @@ export function drawBettingScreen(g) {
   ctx.stroke();
   inkText(ctx, "BETS", 516, 410, 20, PAL.red, { sw: 3.5 });
   const total = g.pool.bets.length;
-  if (total > 8) plainText(ctx, `(+${total - 8} earlier)`, 846, 410, 12, "#7a6a30", { align: "right" });
+  // Scrolling: betScroll rows up from the newest. The window shows BET_ROWS bets, oldest on top.
+  const maxScroll = Math.max(0, total - BET_ROWS);
+  g.betScroll = Math.min(maxScroll, Math.max(0, g.betScroll));
+  const start = total - Math.min(total, BET_ROWS) - g.betScroll;
+  const shown = g.pool.bets.slice(start, start + BET_ROWS);
+  g.betRemoveRects = [];
+  g.betScrollUp = null;
+  g.betScrollDown = null;
+  if (maxScroll > 0) {
+    g.betScrollUp = hitRect(806, 399, 20, 20);
+    g.betScrollDown = hitRect(830, 399, 20, 20);
+    plainText(ctx, `${start + 1}-${start + shown.length} of ${total}`, 798, 410, 12, "#7a6a30", { align: "right" });
+    scrollArrow(ctx, g.betScrollUp, true, g.betScroll < maxScroll, g.betScrollUp.hit(g.mouse));
+    scrollArrow(ctx, g.betScrollDown, false, g.betScroll > 0, g.betScrollDown.hit(g.mouse));
+  }
   if (!total) {
     plainText(ctx, NO_BETS, 548, 438, 15, "#8a7a40", { bold: false });
   } else {
@@ -350,14 +395,22 @@ export function drawBettingScreen(g) {
     ctx.beginPath();
     ctx.rect(504, 398, 352, 188);
     ctx.clip(); // rows slide in from the right, and used to run under the tote board
-    g.pool.bets.slice(-8).forEach((bet, i) => {
+    shown.forEach((bet, i) => {
       if (!g.betSeen.has(bet)) g.betSeen.set(bet, t);
       const a = easeOut((t - g.betSeen.get(bet)) / 0.3);
       const cy = 434 + i * 19;
       const dx = Math.trunc((1 - a) * 30);
+      const rowHover = g.mouse.x >= 508 && g.mouse.x < 852 && g.mouse.y >= cy - 9.5 && g.mouse.y < cy + 9.5;
+      const xRect = hitRect(826, cy - 9, 22, 18);
+      g.betRemoveRects.push({ rect: xRect, bet });
+      const xOver = xRect.hit(g.mouse);
       ctx.save();
       ctx.globalAlpha = a;
       ctx.translate(dx, 0);
+      if (rowHover) {
+        ctx.fillStyle = xOver ? "rgba(220,60,60,0.16)" : "rgba(60,90,200,0.1)";
+        ctx.fillRect(508, cy - 9, 340, 18);
+      }
       const par = isParlay(bet);
       ctx.beginPath();
       ctx.roundRect(512, cy - 8, 20, 16, 4);
@@ -365,11 +418,39 @@ export function drawBettingScreen(g) {
       inkText(ctx, par ? "P" : "W", 522, cy + 0.5, 12, "#fff", { align: "center", sw: 2 });
       const names = bet.horseIds.map((hid) => g.field.find((h) => h.id === hid)?.name ?? "?");
       plainText(ctx, fitText(ctx, formatPlayer(bet.playerNumber, bet.personName), 96, 13.5), 544, cy, 13.5, INK);
-      plainText(ctx, fitText(ctx, names.join(" > "), 128, 13), 644, cy, 13, "#3a2f66");
-      plainText(ctx, `$${shortNum(bet.amount)}`, 846, cy, 13.5, "#1d6a2a", { align: "right" });
+      plainText(ctx, fitText(ctx, names.join(" > "), 118, 13), 644, cy, 13, "#3a2f66");
+      plainText(ctx, `$${shortNum(bet.amount)}`, 820, cy, 13.5, "#1d6a2a", { align: "right" });
+      // the remove x: faint until the row is hovered, red when the x itself is
+      ctx.beginPath();
+      ctx.arc(837, cy, 7, 0, Math.PI * 2);
+      ctx.fillStyle = xOver ? css(PAL.red) : rowHover ? "#e6b0a8" : "rgba(0,0,0,0.08)";
+      ctx.fill();
+      ctx.strokeStyle = xOver ? "#fff" : rowHover ? "#8a2a20" : "rgba(60,40,20,0.45)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(834, cy - 3);
+      ctx.lineTo(840, cy + 3);
+      ctx.moveTo(840, cy - 3);
+      ctx.lineTo(834, cy + 3);
+      ctx.stroke();
       ctx.restore();
     });
     ctx.restore(); // the pad clip
+    // scrollbar along the right edge of the pad
+    if (maxScroll > 0) {
+      const trackY = 426;
+      const trackH = 150;
+      const thumbH = Math.max(18, (trackH * BET_ROWS) / total);
+      const thumbY = trackY + (trackH - thumbH) * (start / maxScroll);
+      ctx.fillStyle = "rgba(60,40,20,0.12)";
+      ctx.beginPath();
+      ctx.roundRect(851, trackY, 4, trackH, 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(60,40,20,0.5)";
+      ctx.beginPath();
+      ctx.roundRect(851, thumbY, 4, thumbH, 2);
+      ctx.fill();
+    }
   }
 
   // ---- right: the tote board
@@ -777,6 +858,14 @@ export function drawResultsScreen(g) {
     }
   }
 
+  if (g.state === "review") {
+    // looking back from betting or the summary: one way out, no Next
+    g.btnReviewBack.label = g.reviewFrom === "summary" ? "Back to Summary" : "Back to Bets";
+    g.btnReviewBack.x = 640;
+    g.btnReviewBack.y = 520;
+    g.drawButton(g.btnReviewBack);
+    return;
+  }
   g.btnNext.label = g.raceIndex + 1 >= RACES ? "View Card Summary" : "Next Race";
   g.btnNext.x = 640;
   g.btnNext.y = 520;
@@ -917,6 +1006,9 @@ export function drawSummaryScreen(g) {
     });
     if (ranked.length > maxRows) plainText(c, `+${ranked.length - maxRows} more`, 408, y + maxRows * 36, 14, "#9fb4d8", { bold: false });
   }
-  g.btnSummaryMenu.centerAt(W / 2, 600);
+  g.btnSummaryResults.enabled = !!g.lastRaceView;
+  g.btnSummaryResults.centerAt(W / 2 - 130, 600);
+  g.btnSummaryMenu.centerAt(W / 2 + 130, 600);
+  g.drawButton(g.btnSummaryResults);
   g.drawButton(g.btnSummaryMenu, true);
 }

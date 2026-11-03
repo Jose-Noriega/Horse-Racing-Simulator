@@ -5,7 +5,7 @@
 
 import * as settings from "./settings.js";
 import {
-  newPool, clearPool, addBet, undoLast, formatPlayer, isParlay, totalPool, amountOnWin,
+  newPool, clearPool, addBet, undoLast, removeBet, formatPlayer, isParlay, totalPool, amountOnWin,
   displayedWinMultiplier, displayedTicketMultiplier, anyTicketHits, payoutsByPlayer,
 } from "./betting.js";
 import { getHorse, makeHorse } from "./horses_data.js";
@@ -18,12 +18,14 @@ import { STATUS } from "./words.js";
 import { drawStarter, footfallCount, stridePhase } from "./sprites.js";
 import { shortNum } from "./ui.js";
 import { createArt, updateArt } from "./fx.js";
-import { drawBettingScreen, drawButtonArt, drawMenuScreen, drawResultsScreen, drawSummaryScreen } from "./screens.js";
+import { BET_PAD, BET_ROWS, drawBettingScreen, drawButtonArt, drawMenuScreen, drawResultsScreen, drawSummaryScreen } from "./screens.js";
 import { drawRaceScreen, drawSetupArt, drawFieldArt, drawBoomArt, drawFinishBoardArt, drawPopArt, drawFadeArt } from "./racefx.js";
 
 const { SCREEN_WIDTH: W, SCREEN_HEIGHT: H, HORSES_PER_RACE: N, RACES_PER_SESSION: RACES } = settings;
 
 const FORM_FIELDS = ["player", "name", "wager"];
+// What the results screen reads. Saved when a race is settled so "Last Results" can show it again.
+const RESULT_VIEW_KEYS = ["raceIndex", "raceResult", "winProbs", "exploded", "poolRefunded", "lastPayouts"];
 const COUNTDOWN_SECONDS = 3.0;
 const DUST_LIFE = 0.6;
 const STARTER_POS = [380, 470]; // in the infield, just left of the start line
@@ -34,7 +36,7 @@ const FINISH_DING_PITCH = [1, 1.122, 1.26]; // 2nd, 3rd, 4th place step up. 5th 
 const PHOTO_FINISH_SECS = 0.35; // winner's margin on screen, under this gets the camera sting
 const CHEER_DONE = 0.6; // an overtake cheer waits until the last one is this far through, so they don't stack into a wash
 const TICK_GAP = 0.09; // seconds between payout count-up ticks
-const SWISH_SCREENS = new Set(["menu", "betting", "results", "summary"]); // setup and race have their own cues
+const SWISH_SCREENS = new Set(["menu", "betting", "results", "review", "summary"]); // setup and race have their own cues
 
 const easeOut = (t) => 1 - (1 - Math.min(1, Math.max(0, t))) ** 3; // fast start, soft stop
 const rand = (a, b) => a + (b - a) * Math.random();
@@ -82,7 +84,9 @@ export class Game {
     this.mouse = { x: -1, y: -1, down: false };
     this.cursorPointer = false;
 
-    this.state = "menu"; // menu | betting | setup | race | results | summary
+    this.state = "menu"; // menu | betting | setup | race | results | review | summary
+    this.lastRaceView = null; // the last settled race's results, for "Last Results"
+    this.reviewFrom = null; // the screen "Back" returns to from review
     this.time = 0;
     this.raceIndex = 0;
     this.field = [];
@@ -131,6 +135,11 @@ export class Game {
     this.sparks = [];
 
     this.betSeen = new Map(); // bet object -> time first drawn
+    // The BETS pad scrolls. betScroll = rows scrolled up from the newest bet (0 = newest at the bottom).
+    this.betScroll = 0;
+    this.betRemoveRects = []; // [{ rect, bet }], the x on each visible row. Rebuilt every draw
+    this.betScrollUp = null; // header arrows, set by the draw when the list overflows
+    this.betScrollDown = null;
     this.finishSeen = new Map(); // horse id -> time first drawn on board
 
     // Buttons and boxes. Positions are for the 1280x720 layout.
@@ -143,6 +152,9 @@ export class Game {
     this.btnBack = new Button(W / 2 - 210, H - 80, 200, 48, "Back to Bets");
     this.btnNext = new Button(0, 0, 220, 44, "Next Race");
     this.btnSummaryMenu = new Button(0, 0, 240, 48, "Back to Menu");
+    this.btnLastResults = new Button(24, 14, 170, 40, "Last Results"); // betting, race 2 on
+    this.btnSummaryResults = new Button(0, 0, 240, 48, "Last Results");
+    this.btnReviewBack = new Button(0, 0, 220, 44, "Back");
     this.playerBox = new TextBox(520, 108, 90, 36);
     this.nameBox = new TextBox(620, 108, 190, 36);
     this.wagerBox = new TextBox(520, 168, 160, 36);
@@ -190,6 +202,26 @@ export class Game {
       this.handleClick(pos);
     });
     window.addEventListener("keydown", (e) => this.handleKey(e));
+    this.canvas.addEventListener("wheel", (e) => {
+      if (this.state !== "betting") return;
+      const pos = this.toLogical(e);
+      if (!BET_PAD.hit(pos)) return;
+      e.preventDefault();
+      this.scrollBets(e.deltaY < 0 ? 1 : -1);
+    }, { passive: false });
+  }
+
+  // Positive = toward older bets. The draw clamps it to the list.
+  scrollBets(rows) {
+    const max = Math.max(0, this.pool.bets.length - BET_ROWS);
+    this.betScroll = Math.min(max, Math.max(0, this.betScroll + rows));
+  }
+
+  removeBetAt(bet) {
+    if (!removeBet(this.pool, bet)) return;
+    this.scrollBets(0); // the list got shorter, keep the scroll in range
+    this.statusMessage = STATUS.removed;
+    this.sounds.play("undo");
   }
 
   toggleFullscreen() {
@@ -202,10 +234,11 @@ export class Game {
     const buttons = {
       menu: [this.btnStartCard],
       // Place Bet, Clear, Undo and the horse rows have their own sounds. No click on top.
-      betting: [this.btnStartRace],
+      betting: [this.btnStartRace, this.btnLastResults],
       setup: this.countdown !== null ? [] : [this.btnGo, this.btnBack],
       results: [this.btnNext],
-      summary: [this.btnSummaryMenu],
+      review: [this.btnReviewBack],
+      summary: [this.btnSummaryMenu, this.btnSummaryResults],
     }[this.state] ?? [];
     return buttons.some((b) => b.hit(pos));
   }
@@ -218,6 +251,11 @@ export class Game {
       case "betting": {
         const lane = this.laneRects.findIndex((r) => r.hit(pos));
         if (lane >= 0) return this.toggleOrAddPick(lane);
+        if (this.btnLastResults.hit(pos)) return this.openReview();
+        const row = this.betRemoveRects.find((r) => r.rect.hit(pos));
+        if (row) return this.removeBetAt(row.bet);
+        if (this.betScrollUp?.hit(pos)) return this.scrollBets(1);
+        if (this.betScrollDown?.hit(pos)) return this.scrollBets(-1);
         for (const [name, box] of [["player", this.playerBox], ["name", this.nameBox], ["wager", this.wagerBox]]) {
           if (box.hit(pos)) {
             this.activeField = name;
@@ -244,8 +282,12 @@ export class Game {
       case "results":
         if (this.btnNext.hit(pos)) this.advanceFromResults();
         return;
+      case "review":
+        if (this.btnReviewBack.hit(pos)) this.closeReview();
+        return;
       case "summary":
         if (this.btnSummaryMenu.hit(pos)) this.state = "menu";
+        else if (this.btnSummaryResults.hit(pos)) this.openReview();
     }
   }
 
@@ -314,11 +356,17 @@ export class Game {
           this.advanceFromResults();
         }
         break;
+      case "review":
+        if (go || e.key === "Backspace" || e.key === "Escape") {
+          e.preventDefault();
+          this.closeReview();
+        }
+        break;
       case "summary":
         if (go) {
           e.preventDefault();
           this.state = "menu";
-        }
+        } else if (e.key === "Backspace") this.openReview();
     }
   }
 
@@ -385,6 +433,7 @@ export class Game {
       h.laneIndex = lane;
     });
     clearPool(this.pool);
+    this.betScroll = 0;
     this.raceResult = null;
     this.lastPayouts = [];
     this.poolRefunded = false;
@@ -400,6 +449,7 @@ export class Game {
 
   beginCard() {
     this.raceIndex = 0;
+    this.lastRaceView = null;
     this.sessionPayouts.clear();
     this.pool.playerNames.clear();
     this.loadCurrentField();
@@ -449,6 +499,7 @@ export class Game {
     const who = formatPlayer(bet.playerNumber, bet.personName);
     this.statusMessage = `${kind} ${who}: ${names.join(" > ")}  $${shortNum(bet.amount)} total`;
     this.selectedLanes = [];
+    this.betScroll = 0; // jump to the newest bet so you see it land
     this.sounds.play("coin");
   }
 
@@ -539,9 +590,23 @@ export class Game {
 
   goToResults() {
     this.applySettlements();
+    this.lastRaceView = Object.fromEntries(RESULT_VIEW_KEYS.map((k) => [k, this[k]]));
+    this.lastRaceView.exploded = new Set(this.exploded); // cleared when the next race lines up
     this.state = "results";
     this.sounds.stopBed(1.0);
     if (this.poolRefunded) this.soundQueue.push([this.time + 0.4, "sad"]); // nobody won, wah wah
+  }
+
+  // Look at the last race's results again. Read-only: nothing is paid twice.
+  openReview() {
+    if (!this.lastRaceView) return;
+    this.reviewFrom = this.state;
+    this.state = "review";
+  }
+
+  closeReview() {
+    this.state = this.reviewFrom ?? "betting";
+    this.reviewFrom = null;
   }
 
   advanceFromResults() {
@@ -821,10 +886,15 @@ export class Game {
       case "setup": this.drawSetup(); break;
       case "race": this.drawRace(); break;
       case "results": this.drawResults(); break;
+      case "review": this.drawReview(); break;
       case "summary": this.drawSummary(); break;
     }
     this.drawFade();
-    const wantPointer = this.hoverButton || (this.state === "betting" && this.laneRects.some((r) => r.hit(this.mouse)));
+    const wantPointer = this.hoverButton || (this.state === "betting" && (
+      this.laneRects.some((r) => r.hit(this.mouse)) ||
+      this.betRemoveRects.some((r) => r.rect.hit(this.mouse)) ||
+      [this.betScrollUp, this.betScrollDown].some((r) => r?.hit(this.mouse))
+    ));
     if (wantPointer !== this.cursorPointer) {
       this.cursorPointer = wantPointer;
       canvas.style.cursor = wantPointer ? "pointer" : "default";
@@ -851,6 +921,18 @@ export class Game {
 
   drawBetting() {
     drawBettingScreen(this);
+  }
+
+  // The results screen, drawn from the saved race. Swaps the saved values in for
+  // the draw only, so the race being bet on now is untouched.
+  drawReview() {
+    const now = Object.fromEntries(RESULT_VIEW_KEYS.map((k) => [k, this[k]]));
+    Object.assign(this, this.lastRaceView);
+    try {
+      drawResultsScreen(this);
+    } finally {
+      Object.assign(this, now);
+    }
   }
 
   drawStarter() {

@@ -170,9 +170,10 @@ export const STATUS = {
   nothingToUndo: "nothing to undo.",
   cleared: "picks cleared. they didn't say anything.",
   undone: "bet undone. it's fine. it was never there.",
+  removed: "bet removed. ctrl+z if that was a mistake.",
 };
 
-const GOOD = new Set(["bet", "undone", "cleared"]);
+const GOOD = new Set(["bet", "undone", "cleared", "removed"]);
 
 // "bet" for a placed bet ("Win #1 Ann: ..."), a STATUS key, or "other".
 export function statusKind(msg) {

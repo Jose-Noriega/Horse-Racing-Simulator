@@ -70,10 +70,30 @@ export function addBet(pool, playerNumber, personName, horseIds, amount) {
   return bet;
 }
 
-// Reverse the most recent wager (or added amount). False if nothing to undo.
+// Take one whole ticket off the pool. Undo puts it back: the undo history from
+// before the removal is saved with it, since the removal also drops that
+// ticket's own add entries. False if the bet is not in the pool.
+export function removeBet(pool, bet) {
+  const index = pool.bets.indexOf(bet);
+  if (index < 0) return false;
+  const stackBefore = [...pool.undoStack];
+  pool.bets.splice(index, 1);
+  const keep = pool.undoStack.filter(
+    (a) => a.removed || a.playerNumber !== bet.playerNumber || !sameIds(a.horseIds, bet.horseIds),
+  );
+  pool.undoStack.splice(0, pool.undoStack.length, ...keep, { removed: bet, index, stackBefore });
+  return true;
+}
+
+// Reverse the most recent wager (or added amount, or removal). False if nothing to undo.
 export function undoLast(pool) {
   const action = pool.undoStack.pop();
   if (!action) return false;
+  if (action.removed) {
+    pool.bets.splice(Math.min(action.index, pool.bets.length), 0, action.removed);
+    pool.undoStack.splice(0, pool.undoStack.length, ...action.stackBefore);
+    return true;
+  }
   for (let i = 0; i < pool.bets.length; i++) {
     const bet = pool.bets[i];
     if (bet.playerNumber !== action.playerNumber) continue;

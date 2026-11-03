@@ -44,8 +44,8 @@ dot shows while it's on), or add `?secret` to the url.
   `public/assets/music/README.md`.
 - Startup: a loading screen preloads sound files and the menu theme before
   opening the menu.
-  Then “Click to enter” unlocks browser audio and starts the menu theme before
-  the player chooses Start Race Card. Missing audio files are reported in the
+  The menu theme starts on the first key press or click, since browsers block
+  audio until a user gesture. Missing audio files are reported in the
   browser console but do not block play.
 
 - Horses: `public/js/roster_raw.js`
