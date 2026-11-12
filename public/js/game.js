@@ -93,6 +93,7 @@ export class Game {
     this.pool = newPool();
     this.raceResult = null; // { ordered, finishTimes }
     this.sessionPayouts = new Map(); // player # -> [name, paid]
+    this.payoutRowRects = []; // clickable payout rows on the results receipt, filled by the draw
     this.lastPayouts = [];
     this.poolRefunded = false;
     this.winProbs = {};
@@ -217,6 +218,15 @@ export class Game {
     this.betScroll = Math.min(max, Math.max(0, this.betScroll + rows));
   }
 
+  // Dealer tick-off on the payouts receipt: click a name to cross it out, again to undo.
+  // The flag lives on the payout row, so it is still there in "Last Results".
+  togglePaidAt(pos) {
+    const row = this.payoutRowRects.find((r) => r.rect.hit(pos));
+    if (!row) return;
+    row.payout.paid = !row.payout.paid;
+    this.sounds.play(row.payout.paid ? "coin" : "undo");
+  }
+
   removeBetAt(bet) {
     if (!removeBet(this.pool, bet)) return;
     this.scrollBets(0); // the list got shorter, keep the scroll in range
@@ -281,9 +291,11 @@ export class Game {
         return;
       case "results":
         if (this.btnNext.hit(pos)) this.advanceFromResults();
+        else this.togglePaidAt(pos);
         return;
       case "review":
         if (this.btnReviewBack.hit(pos)) this.closeReview();
+        else this.togglePaidAt(pos);
         return;
       case "summary":
         if (this.btnSummaryMenu.hit(pos)) this.state = "menu";
@@ -894,7 +906,8 @@ export class Game {
       this.laneRects.some((r) => r.hit(this.mouse)) ||
       this.betRemoveRects.some((r) => r.rect.hit(this.mouse)) ||
       [this.betScrollUp, this.betScrollDown].some((r) => r?.hit(this.mouse))
-    ));
+    )) || ((this.state === "results" || this.state === "review") &&
+      this.payoutRowRects.some((r) => r.rect.hit(this.mouse)));
     if (wantPointer !== this.cursorPointer) {
       this.cursorPointer = wantPointer;
       canvas.style.cursor = wantPointer ? "pointer" : "default";

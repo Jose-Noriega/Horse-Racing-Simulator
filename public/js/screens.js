@@ -740,6 +740,7 @@ function raincloud(c, x, y, t) {
 export function drawResultsScreen(g) {
   const { ctx: c } = g;
   const t = g.time;
+  g.payoutRowRects = [];
   c.drawImage(getLayer(g, "betbg", paintBetBackdrop), 0, 0, W, H);
   ribbon(c, W / 2, 34, 340, 40, `RACE ${g.raceIndex + 1} RESULTS`, 30);
   if (!g.raceResult) {
@@ -831,9 +832,17 @@ export function drawResultsScreen(g) {
     const maxRows = 10;
     rows.slice(0, maxRows).forEach((p, n) => {
       const y = 200 + n * 27;
+      // click a row to mark it paid (crossed out); click again to undo
+      const rect = hitRect(656, y - 13, 548, 27);
+      g.payoutRowRects.push({ rect, payout: p });
+      if (rect.hit(g.mouse)) {
+        c.fillStyle = "rgba(255,201,40,0.22)";
+        c.fillRect(rect.x, rect.y, rect.w, rect.h);
+      }
       const shown = p.amount * easeOut((age - 0.5 - n * 0.3) / 1.2);
       const who = fitText(c, formatPlayer(p.playerNumber, p.personName), 300, 19);
-      plainText(c, who, 664, y, 19, "#2a2150");
+      const alpha = p.paid ? 0.45 : 1;
+      plainText(c, who, 664, y, 19, "#2a2150", { alpha });
       const wdt = textWidth(c, who, 19);
       c.setLineDash([2, 5]);
       c.strokeStyle = "rgba(28,18,38,0.35)";
@@ -842,8 +851,21 @@ export function drawResultsScreen(g) {
       c.lineTo(1020, y + 7);
       c.stroke();
       c.setLineDash([]);
-      plainText(c, `$${shortNum(shown)}`, 1196, y, 21, "#1d7a2a", { align: "right" });
+      const amt = `$${shortNum(shown)}`;
+      plainText(c, amt, 1196, y, 21, "#1d7a2a", { align: "right", alpha });
+      if (p.paid) {
+        c.strokeStyle = "#b0262c";
+        c.lineWidth = 2.5;
+        c.beginPath();
+        c.moveTo(660, y + 1);
+        c.lineTo(664 + wdt + 4, y + 1);
+        c.moveTo(1196 - textWidth(c, amt, 21) - 4, y + 1);
+        c.lineTo(1200, y + 1);
+        c.stroke();
+        plainText(c, "PAID", 1060, y, 14, "#b0262c", { align: "center" });
+      }
     });
+    plainText(c, "Click a name to mark it paid", 1196, 122, 12, "#8a7fa8", { align: "right", bold: false });
     if (rows.length > maxRows) plainText(c, `+${rows.length - maxRows} more winners`, 664, 200 + maxRows * 27, 14, "#8a7fa8", { bold: false });
     if (age > 0.5) {
       c.save();
