@@ -51,6 +51,9 @@ export function drawButtonArt(g, btn, pulse = false) {
 // The BETS pad: where the mouse wheel scrolls it, and how many rows fit.
 export const BET_ROWS = 8;
 export const BET_PAD = { x: 500, y: 388, w: 360, h: 202, hit(p) { return p.x >= 500 && p.x < 860 && p.y >= 388 && p.y < 590; } };
+// Payout receipt on the results screen. Shows PAYOUT_ROWS winners, scrolls for the rest.
+export const PAYOUT_ROWS = 10;
+export const PAYOUT_PAD = { hit(p) { return p.x >= 640 && p.x < 1220 && p.y >= 80 && p.y < 480; } };
 
 // Small up/down arrow button for the pad header.
 function scrollArrow(ctx, r, up, enabled, over) {
@@ -829,8 +832,11 @@ export function drawResultsScreen(g) {
     lines.forEach((ln, i) => plainText(c, ln, 1010, 288 + i * 22, i === 0 ? 20 : 15.5, i === 0 ? "#b0262c" : INK, { align: "center" }));
   } else {
     const rows = g.lastPayouts;
-    const maxRows = 10;
-    rows.slice(0, maxRows).forEach((p, n) => {
+    // Scrolling: payoutScroll rows down from the top (biggest winner first).
+    const maxScroll = Math.max(0, rows.length - PAYOUT_ROWS);
+    g.payoutScroll = Math.min(maxScroll, Math.max(0, g.payoutScroll));
+    const first = g.payoutScroll;
+    rows.slice(first, first + PAYOUT_ROWS).forEach((p, n) => {
       const y = 200 + n * 27;
       // click a row to mark it paid (crossed out); click again to undo
       const rect = hitRect(656, y - 13, 548, 27);
@@ -866,7 +872,34 @@ export function drawResultsScreen(g) {
       }
     });
     plainText(c, "Click a name to mark it paid", 1196, 122, 12, "#8a7fa8", { align: "right", bold: false });
-    if (rows.length > maxRows) plainText(c, `+${rows.length - maxRows} more winners`, 664, 200 + maxRows * 27, 14, "#8a7fa8", { bold: false });
+    // footer: how many are paid, and where you are in a long list
+    const paidCount = rows.filter((p) => p.paid).length;
+    const allPaid = paidCount === rows.length;
+    plainText(c, allPaid ? `All ${rows.length} paid` : `${paidCount} of ${rows.length} paid`, 664, 470, 14,
+      allPaid ? "#1d7a2a" : "#8a7fa8", { bold: allPaid });
+    g.payoutScrollUp = null;
+    g.payoutScrollDown = null;
+    if (maxScroll > 0) {
+      g.payoutScrollUp = hitRect(1150, 460, 20, 20);
+      g.payoutScrollDown = hitRect(1176, 460, 20, 20);
+      const last = Math.min(rows.length, first + PAYOUT_ROWS);
+      plainText(c, `${first + 1}-${last} of ${rows.length}`, 1140, 470, 12, "#8a7fa8", { align: "right" });
+      scrollArrow(c, g.payoutScrollUp, true, first > 0, g.payoutScrollUp.hit(g.mouse));
+      scrollArrow(c, g.payoutScrollDown, false, first < maxScroll, g.payoutScrollDown.hit(g.mouse));
+      // scrollbar along the right edge of the receipt
+      const trackY = 188;
+      const trackH = 266;
+      const thumbH = Math.max(24, (trackH * PAYOUT_ROWS) / rows.length);
+      const thumbY = trackY + (trackH - thumbH) * (first / maxScroll);
+      c.fillStyle = "rgba(28,18,38,0.1)";
+      c.beginPath();
+      c.roundRect(1208, trackY, 5, trackH, 2.5);
+      c.fill();
+      c.fillStyle = "rgba(28,18,38,0.45)";
+      c.beginPath();
+      c.roundRect(1208, thumbY, 5, thumbH, 2.5);
+      c.fill();
+    }
     if (age > 0.5) {
       c.save();
       c.translate(1112, 158);

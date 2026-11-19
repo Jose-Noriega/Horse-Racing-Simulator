@@ -25,6 +25,12 @@ loading.hidden = true;
 const canvas = document.getElementById("game");
 const game = new Game(canvas, { secret: new URLSearchParams(location.search).has("secret") });
 window.game = game; // handy in the console: watch it work
+// ?sim or ?sim=N: fill each race with N players' bets (default 100). See sim.js.
+const simParam = new URLSearchParams(location.search).get("sim");
+if (simParam !== null) {
+  const { installSim } = await import("./sim.js");
+  installSim(game, Math.max(1, parseInt(simParam, 10) || 100));
+}
 game.sounds.setMusicScreen(game.state);
 // Browsers block audio until a gesture. The game unlocks it on the first key or click.
 

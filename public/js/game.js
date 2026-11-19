@@ -18,7 +18,7 @@ import { STATUS } from "./words.js";
 import { drawStarter, footfallCount, stridePhase } from "./sprites.js";
 import { shortNum } from "./ui.js";
 import { createArt, updateArt } from "./fx.js";
-import { BET_PAD, BET_ROWS, drawBettingScreen, drawButtonArt, drawMenuScreen, drawResultsScreen, drawSummaryScreen } from "./screens.js";
+import { BET_PAD, BET_ROWS, PAYOUT_PAD, PAYOUT_ROWS, drawBettingScreen, drawButtonArt, drawMenuScreen, drawResultsScreen, drawSummaryScreen } from "./screens.js";
 import { drawRaceScreen, drawSetupArt, drawFieldArt, drawBoomArt, drawFinishBoardArt, drawPopArt, drawFadeArt } from "./racefx.js";
 
 const { SCREEN_WIDTH: W, SCREEN_HEIGHT: H, HORSES_PER_RACE: N, RACES_PER_SESSION: RACES } = settings;
@@ -94,6 +94,9 @@ export class Game {
     this.raceResult = null; // { ordered, finishTimes }
     this.sessionPayouts = new Map(); // player # -> [name, paid]
     this.payoutRowRects = []; // clickable payout rows on the results receipt, filled by the draw
+    this.payoutScroll = 0; // rows scrolled down from the top of the receipt (0 = biggest winner first)
+    this.payoutScrollUp = null; // receipt arrows, set by the draw when the list overflows
+    this.payoutScrollDown = null;
     this.lastPayouts = [];
     this.poolRefunded = false;
     this.winProbs = {};
@@ -204,11 +207,14 @@ export class Game {
     });
     window.addEventListener("keydown", (e) => this.handleKey(e));
     this.canvas.addEventListener("wheel", (e) => {
-      if (this.state !== "betting") return;
       const pos = this.toLogical(e);
-      if (!BET_PAD.hit(pos)) return;
-      e.preventDefault();
-      this.scrollBets(e.deltaY < 0 ? 1 : -1);
+      if (this.state === "betting" && BET_PAD.hit(pos)) {
+        e.preventDefault();
+        this.scrollBets(e.deltaY < 0 ? 1 : -1);
+      } else if ((this.state === "results" || this.state === "review") && PAYOUT_PAD.hit(pos)) {
+        e.preventDefault();
+        this.scrollPayouts(e.deltaY < 0 ? -1 : 1);
+      }
     }, { passive: false });
   }
 
@@ -216,6 +222,29 @@ export class Game {
   scrollBets(rows) {
     const max = Math.max(0, this.pool.bets.length - BET_ROWS);
     this.betScroll = Math.min(max, Math.max(0, this.betScroll + rows));
+  }
+
+  // Positive = further down the receipt. The draw clamps it to the list.
+  scrollPayouts(rows) {
+    const shown = this.state === "review" ? this.lastRaceView?.lastPayouts : this.lastPayouts;
+    const max = Math.max(0, (shown?.length ?? 0) - PAYOUT_ROWS);
+    this.payoutScroll = Math.min(max, Math.max(0, this.payoutScroll + rows));
+  }
+
+  // Receipt clicks: the scroll arrows first, then a row to mark it paid.
+  clickReceipt(pos) {
+    if (this.payoutScrollUp?.hit(pos)) return this.scrollPayouts(-1);
+    if (this.payoutScrollDown?.hit(pos)) return this.scrollPayouts(1);
+    this.togglePaidAt(pos);
+  }
+
+  // Arrow keys and Page Up/Down scroll the receipt. True if the key was used.
+  payoutScrollKey(e) {
+    const step = { ArrowUp: -1, ArrowDown: 1, PageUp: -PAYOUT_ROWS, PageDown: PAYOUT_ROWS }[e.key];
+    if (!step) return false;
+    e.preventDefault();
+    this.scrollPayouts(step);
+    return true;
   }
 
   // Dealer tick-off on the payouts receipt: click a name to cross it out, again to undo.
@@ -291,11 +320,11 @@ export class Game {
         return;
       case "results":
         if (this.btnNext.hit(pos)) this.advanceFromResults();
-        else this.togglePaidAt(pos);
+        else this.clickReceipt(pos);
         return;
       case "review":
         if (this.btnReviewBack.hit(pos)) this.closeReview();
-        else this.togglePaidAt(pos);
+        else this.clickReceipt(pos);
         return;
       case "summary":
         if (this.btnSummaryMenu.hit(pos)) this.state = "menu";
@@ -363,12 +392,14 @@ export class Game {
         }
         break;
       case "results":
+        if (this.payoutScrollKey(e)) break;
         if (go || e.key.toLowerCase() === "n") {
           e.preventDefault();
           this.advanceFromResults();
         }
         break;
       case "review":
+        if (this.payoutScrollKey(e)) break;
         if (go || e.key === "Backspace" || e.key === "Escape") {
           e.preventDefault();
           this.closeReview();
@@ -604,6 +635,7 @@ export class Game {
     this.applySettlements();
     this.lastRaceView = Object.fromEntries(RESULT_VIEW_KEYS.map((k) => [k, this[k]]));
     this.lastRaceView.exploded = new Set(this.exploded); // cleared when the next race lines up
+    this.payoutScroll = 0;
     this.state = "results";
     this.sounds.stopBed(1.0);
     if (this.poolRefunded) this.soundQueue.push([this.time + 0.4, "sad"]); // nobody won, wah wah
@@ -613,12 +645,14 @@ export class Game {
   openReview() {
     if (!this.lastRaceView) return;
     this.reviewFrom = this.state;
+    this.payoutScroll = 0;
     this.state = "review";
   }
 
   closeReview() {
     this.state = this.reviewFrom ?? "betting";
     this.reviewFrom = null;
+    this.payoutScroll = 0;
   }
 
   advanceFromResults() {
@@ -907,7 +941,7 @@ export class Game {
       this.betRemoveRects.some((r) => r.rect.hit(this.mouse)) ||
       [this.betScrollUp, this.betScrollDown].some((r) => r?.hit(this.mouse))
     )) || ((this.state === "results" || this.state === "review") &&
-      this.payoutRowRects.some((r) => r.rect.hit(this.mouse)));
+      [...this.payoutRowRects.map((r) => r.rect), this.payoutScrollUp, this.payoutScrollDown].some((r) => r?.hit(this.mouse)));
     if (wantPointer !== this.cursorPointer) {
       this.cursorPointer = wantPointer;
       canvas.style.cursor = wantPointer ? "pointer" : "default";
