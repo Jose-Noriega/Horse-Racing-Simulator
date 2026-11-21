@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<!--
+  Contact sheet: every horse in the roster, drawn the way the game draws them.
+  Not part of the game (wrangler only deploys ./public). Use it to check new art.
+
+  Serve the repo root, then open the page:
+    python3 -m http.server 8765
+    http://localhost:8765/tools/gallery.html
+  Options in the url: ?from=0&to=40&cols=5   a range of horses, 5 per row
+                      ?ids=4,13,17&scale=3     only these horses (by number), drawn 3x bigger
+                      &parts=1                 also draw the pieces that fly off when it explodes
+  Each cell: name, coat/hat/face, then a portrait, a running horse, a charred horse
+  (what exploding mode does), and a mini head.
+-->
+<html>
+<body style="margin:0;background:#2a2450">
+<canvas id="c" width="1600" height="1560"></canvas>
+<script type="module">
+import { ROSTER, makeHorse } from "../public/js/horses_data.js";
+import { assignAccents } from "../public/js/race_card.js";
+import { drawPortrait, drawHorse, drawMiniHead, drawHorsePart } from "../public/js/characters.js";
+
+const c = document.getElementById("c");
+const ctx = c.getContext("2d");
+const params = new URLSearchParams(location.search);
+const cols = Number(params.get("cols") ?? 8);
+const scale = Number(params.get("scale") ?? 1);
+const cellW = 200;
+const cellH = 170;
+// Either a list of horse numbers, or a from/to range.
+const ids = params.has("ids")
+  ? params.get("ids").split(",").map(Number)
+  : Array.from({ length: Number(params.get("to") ?? ROSTER.length) - Number(params.get("from") ?? 0) }, (_, i) => i + Number(params.get("from") ?? 0));
+c.width = Math.min(cols, ids.length) * cellW * scale;
+c.height = Math.ceil(ids.length / cols) * cellH * scale;
+ctx.scale(scale, scale);
+
+// Five at a time get their own accent colors, like a real race.
+const horses = ids.map((id) => makeHorse(ROSTER[id]));
+for (let i = 0; i < horses.length; i += 5) assignAccents(horses.slice(i, i + 5), () => 0.37 + i * 0.013);
+
+horses.forEach((h, n) => {
+  const x = (n % cols) * cellW;
+  const y = Math.floor(n / cols) * cellH;
+  ctx.fillStyle = n % 2 ? "#322b5c" : "#2a2450";
+  ctx.fillRect(x, y, cellW, cellH);
+  ctx.fillStyle = "#fff";
+  ctx.font = "bold 13px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(`${h.id}. ${h.name}`.slice(0, 30), x + cellW / 2, y + 16);
+  ctx.font = "11px sans-serif";
+  ctx.fillStyle = "#b9b4d8";
+  ctx.fillText(`${h.coatName}/${h.acc}/${h.trait}${h.body && h.body !== "horse" ? "/" + h.body : ""}`, x + cellW / 2, y + 30);
+  drawPortrait(ctx, h, x + 36, y + 80, 56, { mood: "happy", t: 0.3 });
+  drawHorse(ctx, x + 110, y + 118, 0, h, 0.15, true, { mood: "happy", face: "grin", t: 0.3 });
+  drawHorse(ctx, x + 175, y + 125, 0, h, 0, false, { charred: true, t: 0.3, scale: 0.6 });
+  drawMiniHead(ctx, h, x + 26, y + 142, 26);
+  if (params.has("parts")) {
+    // the explosion pieces: head, leg, body, tail, helmet
+    ["head", "leg", "body", "tail", "helmet"].forEach((part, k) => {
+      ctx.save();
+      ctx.translate(x + 62 + k * 26, y + 156);
+      drawHorsePart(ctx, h, part, 0.3);
+      ctx.restore();
+    });
+  }
+});
+</script>
+</body>
+</html>

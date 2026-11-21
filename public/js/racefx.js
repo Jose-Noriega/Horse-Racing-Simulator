@@ -7,7 +7,7 @@ import {
   INK, PAL, BODY, shade, hash, easeOut, easeBack, clamp01, inkText, plainText, fitText, fitSize, panel, ribbon,
   inkCircle, inkEllipse, inkRect, inkFill, inkStar, burst, puff,
 } from "./art.js";
-import { drawHorse, drawPortrait } from "./characters.js";
+import { drawHorse, drawPortrait, drawHorsePart } from "./characters.js";
 import { drawScenery, drawGags } from "./scenery.js";
 import { drawCrowd } from "./crowd.js";
 import { stridePhase } from "./sprites.js";
@@ -304,13 +304,20 @@ export function drawBoomArt(g) {
     ctx.stroke();
   }
   // smoke under fire under debris
-  for (const kind of ["smoke", "fire", "debris"]) {
+  for (const kind of ["smoke", "fire", "debris", "part"]) {
     for (const p of g.sparks) {
       if (p.kind !== kind || p.age <= 0) continue;
       const f = p.age / p.life;
       const x = Math.trunc(p.x);
       const y = Math.trunc(p.y);
-      if (kind === "smoke") {
+      if (kind === "part") {
+        ctx.save();
+        ctx.globalAlpha = 1 - clamp01((f - 0.75) / 0.25); // fade out over the last quarter
+        ctx.translate(x, y);
+        ctx.rotate(p.rot);
+        drawHorsePart(ctx, p.horse, p.part, p.age);
+        ctx.restore();
+      } else if (kind === "smoke") {
         puff(ctx, x, y, p.r * (1 + 1.5 * f) * 0.9, [70, 66, 74], 0.85 * (1 - f), true);
       } else if (kind === "fire") {
         const stops = [[255, 240, 120], [255, 150, 30], [200, 50, 20], [50, 40, 40]];

@@ -62,6 +62,10 @@ export const COAT_COLORS = {
   "blue roan": [96, 108, 128],
   champagne: [214, 184, 150],
   sorrel: [200, 110, 60],
+  "flaxen chestnut": [172, 82, 40], // chestnut with a pale mane and tail (see MANE_COLORS)
+  // not from nature
+  steel: [150, 166, 182], // robots
+  "alien green": [118, 205, 96],
   // silly
   mint: [150, 210, 175],
   lavender: [178, 150, 210],
@@ -82,12 +86,25 @@ export const PACE_STYLES = {
   plodder: { style: 0.2, lateKick: 0.15 },
 };
 
+// Coats that do not get the automatic mane (dark body = light mane, light body = dark mane).
+// Keyed by coat name. Anything not listed here uses the automatic one.
+export const MANE_COLORS = {
+  "flaxen chestnut": [246, 238, 218],
+};
+
+// Body styles. "horse" is the default and the roster leaves it off. The others swap the head
+// and add a few details (spots, a wing, a different tail). Legs, rider and saddle cloth stay.
+export const BODIES = ["horse", "duck", "cow"];
+
 // Hats and props, and face quirks. Roster entries pick from these by name.
 export const ACCESSORIES = [
   "sunglasses", "tophat", "mustache", "bandana", "helmet", "partyhat", "monocle",
   "bowtie", "flower", "crown", "propeller", "chef", "cowboy", "headband",
+  "wizard", "unicorn", "antennae", "cyborg",
+  "beard", "wig", "clownwig",
+  "none", // no hat at all. For plain, wild-looking horses
 ];
-export const TRAITS = ["tongue", "goofy", "buckteeth", "lashes", "grin", "none"];
+export const TRAITS = ["tongue", "goofy", "buckteeth", "lashes", "grin", "none", "glowing", "alien", "visor", "hollow", "vortex"];
 
 // Rider / outfit colors. Dealt out fresh each race, no two horses in a race share one.
 // Also the horse's color on the bet screen and its fans in the crowd.

@@ -3,14 +3,15 @@
 import * as settings from "./settings.js";
 import { ROSTER_RAW } from "./roster_raw.js";
 
-// Takes the raw list so a test can shuffle it. Throws on a bad coat, hat, face or style name.
+// Takes the raw list so a test can shuffle it. Throws on a bad coat, hat, face, style or body name.
 export function buildRoster(raw = ROSTER_RAW) {
   const mean = raw.reduce((s, [, speed]) => s + speed, 0) / raw.length;
   const k = settings.SPEED_COMPRESSION;
-  return raw.map(([name, speed, coatName, acc, trait, paceName], id) => {
+  return raw.map(([name, speed, coatName, acc, trait, paceName, body = "horse"], id) => {
     if (!settings.COAT_COLORS[coatName]) throw new Error(`${name}: unknown coat "${coatName}"`);
     if (!settings.ACCESSORIES.includes(acc)) throw new Error(`${name}: unknown hat "${acc}"`);
     if (!settings.TRAITS.includes(trait)) throw new Error(`${name}: unknown face "${trait}"`);
+    if (!settings.BODIES.includes(body)) throw new Error(`${name}: unknown body "${body}"`);
     const pace = settings.PACE_STYLES[paceName];
     if (!pace) throw new Error(`${name}: unknown running style "${paceName}"`);
     return {
@@ -19,6 +20,8 @@ export function buildRoster(raw = ROSTER_RAW) {
       averageSpeed: mean + (speed - mean) * k,
       coat: settings.COAT_COLORS[coatName],
       coatName,
+      mane: settings.MANE_COLORS[coatName] ?? null,
+      body,
       acc,
       trait,
       paceName,

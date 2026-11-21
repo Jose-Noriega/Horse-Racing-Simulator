@@ -32,6 +32,10 @@ On a Mac, F11 is taken by the system, so use `F` or `Option+Enter`.
 Exploding-horses mode: type `boom` on any screen except mid-race to toggle it (a
 faint red dot shows in the corner while it's on), or add `?secret` to the url.
 
+To see every horse at once (after changing art or the roster), run
+`python3 -m http.server 8765` in this folder and open
+`http://localhost:8765/tools/gallery.html`. It is not part of the deployed game.
+
 ## Edit the game
 
 - Sounds: made in `public/js/synth.js`, levels in `MIX_DB` in `settings.js`.

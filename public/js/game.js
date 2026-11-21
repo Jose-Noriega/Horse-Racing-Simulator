@@ -830,6 +830,16 @@ export class Game {
       burst(26, "fire", [60, 280], [0.45, 0.9], [4, 9], [0, Math.PI * 2]);
       burst(10, "smoke", [10, 70], [1.0, 1.8], [8, 14], [0, Math.PI * 2], -30);
       burst(10, "debris", [120, 320], [0.7, 1.2], [2, 4], [Math.PI, Math.PI * 2]); // mostly up
+      // the horse itself comes apart: head, four legs, a chunk of body, the tail and the rider's helmet
+      for (const part of ["head", "leg", "leg", "leg", "leg", "body", "tail", "helmet"]) {
+        const ang = rand(Math.PI * 1.1, Math.PI * 1.9); // up and out
+        const spd = part === "head" ? rand(230, 340) : rand(140, 400);
+        this.sparks.push({
+          kind: "part", part, horse, x: horse.x, y: horse.y - 6,
+          vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+          age: wait, life: rand(1.5, 2.2), r: 0, rot: rand(0, Math.PI * 2), spin: rand(-12, 12), color: horse.coat,
+        });
+      }
     });
   }
 
@@ -843,7 +853,10 @@ export class Game {
       p.y += p.vy * dt;
       p.vx *= 0.97;
       if (p.kind === "debris") p.vy += 500 * dt; // gravity
-      else if (p.kind === "smoke") p.vy -= 20 * dt; // drifts up
+      else if (p.kind === "part") {
+        p.vy += 650 * dt; // heavier than debris, falls faster
+        p.rot += p.spin * dt;
+      } else if (p.kind === "smoke") p.vy -= 20 * dt; // drifts up
       else p.vy *= 0.97;
     }
     this.sparks = this.sparks.filter((p) => p.age < p.life);

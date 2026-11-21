@@ -8,7 +8,7 @@ import { hash, shade, easeBack, easeOut, clamp01 } from "../public/js/art.js";
 import { quirks, ACCESSORIES, TRAITS } from "../public/js/characters.js";
 import { ROSTER, buildRoster } from "../public/js/horses_data.js";
 import { ROSTER_RAW } from "../public/js/roster_raw.js";
-import { COAT_COLORS, PACE_STYLES } from "../public/js/settings.js";
+import { COAT_COLORS, PACE_STYLES, BODIES } from "../public/js/settings.js";
 
 test("every horse has a known coat, hat and face", () => {
   for (const h of ROSTER) {
@@ -25,10 +25,19 @@ test("the roster uses a good spread of running styles", () => {
 test("the roster uses a good spread of coats and hats", () => {
   assert.ok(new Set(ROSTER.map((h) => h.coatName)).size >= 15, "too few coats in use");
   assert.equal(new Set(ROSTER.map((h) => h.acc)).size, ACCESSORIES.length, "some hat is never used");
+  assert.equal(new Set(ROSTER.map((h) => h.trait)).size, TRAITS.length, "some face is never used");
+  assert.equal(new Set(ROSTER.map((h) => h.body)).size, BODIES.length, "some body style is never used");
 });
 
-test("coat, hat, face and running style follow the name when the roster order changes", () => {
-  const byName = (list) => Object.fromEntries(list.map((h) => [h.name, [h.coatName, h.acc, h.trait, h.paceName, h.paceStyle, h.lateKick]]));
+test("the odd ones stay odd: most horses are plain horses with a normal hat", () => {
+  const odd = new Set(["wizard", "unicorn", "antennae", "cyborg"]);
+  assert.ok(ROSTER.filter((h) => odd.has(h.acc)).length <= 14, "too many fantasy hats");
+  assert.ok(ROSTER.filter((h) => h.body !== "horse").length <= 6, "too many animals");
+  assert.ok(ROSTER.filter((h) => h.acc === "sunglasses").length <= 3, "sunglasses should be rare");
+});
+
+test("coat, hat, face, body and running style follow the name when the roster order changes", () => {
+  const byName = (list) => Object.fromEntries(list.map((h) => [h.name, [h.coatName, h.acc, h.trait, h.paceName, h.paceStyle, h.lateKick, h.body]]));
   const flipped = buildRoster([...ROSTER_RAW].reverse());
   assert.deepEqual(byName(flipped), byName(ROSTER));
 });
@@ -38,6 +47,7 @@ test("a typo in the roster fails loudly", () => {
   assert.throws(() => buildRoster([["Oops", 90, "bay", "fez", "grin"]]), /unknown hat/);
   assert.throws(() => buildRoster([["Oops", 90, "bay", "tophat", "frown"]]), /unknown face/);
   assert.throws(() => buildRoster([["Oops", 90, "bay", "tophat", "grin", "sprinter"]]), /unknown running style/);
+  assert.throws(() => buildRoster([["Oops", 90, "bay", "tophat", "grin", "steady", "dragon"]]), /unknown body/);
 });
 
 test("hash: in [0, 1), steady, and not all the same", () => {
