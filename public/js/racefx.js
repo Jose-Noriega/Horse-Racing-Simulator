@@ -4,14 +4,13 @@
 
 import * as settings from "./settings.js";
 import {
-  INK, PAL, BODY, shade, hash, easeOut, easeBack, clamp01, inkText, plainText, fitText, panel, ribbon,
+  INK, PAL, BODY, shade, hash, easeOut, easeBack, clamp01, inkText, plainText, fitText, fitSize, panel, ribbon,
   inkCircle, inkEllipse, inkRect, inkFill, inkStar, burst, puff,
 } from "./art.js";
 import { drawHorse, drawPortrait } from "./characters.js";
 import { drawScenery, drawGags } from "./scenery.js";
 import { drawCrowd } from "./crowd.js";
 import { stridePhase } from "./sprites.js";
-import { BOOMS } from "./words.js";
 
 const W = settings.SCREEN_WIDTH;
 const H = settings.SCREEN_HEIGHT;
@@ -34,9 +33,7 @@ function freshRace() {
     explodedSeen: new Set(),
     explodedAt: new Map(),
     blastsSeen: new WeakSet(),
-    booms: [],
     confetti: [],
-    boomCount: 0,
   };
 }
 
@@ -109,13 +106,6 @@ export function updateRaceFx(g, dt) {
         r.explodedAt.set(id, now);
       }
     }
-    for (const b of g.blasts) {
-      if (!r.blastsSeen.has(b)) {
-        r.blastsSeen.add(b);
-        r.booms.push({ x: b.x, y: b.y, at: now - b.age, text: BOOMS[r.boomCount++ % BOOMS.length], rot: (Math.random() - 0.5) * 0.5 });
-      }
-    }
-    r.booms = r.booms.filter((b) => now - b.at < 1.3);
   }
 
   // confetti physics. A shower from the top on the results screen.
@@ -243,9 +233,11 @@ export function drawFieldArt(g) {
       const medal = ["#ffc928", "#d5dbe6", "#d98a4a"][horse.place - 1] ?? "#9fb4d8";
       inkCircle(ctx, hx + 36, hy - 4, 8.5, medal, 2);
       inkText(ctx, String(horse.place), hx + 36, hy - 3.5, 12, INK, { align: "center", sw: 0 });
-      inkText(ctx, horse.name, hx + 49, hy - 4, 14, "#fff", { sw: 3.6, font: BODY, bold: true });
+      const sz = fitSize(ctx, horse.name, 190, 14);
+      inkText(ctx, fitText(ctx, horse.name, 190, sz), hx + 49, hy - 4, sz, "#fff", { sw: 3.6, font: BODY, bold: true });
     } else {
-      inkText(ctx, horse.name, hx, hy - 46 + dy, 14, "#fff", { align: "center", sw: 3.6, alpha, font: BODY, bold: true });
+      const sz = fitSize(ctx, horse.name, 150, 14);
+      inkText(ctx, fitText(ctx, horse.name, 150, sz), hx, hy - 46 + dy, sz, "#fff", { align: "center", sw: 3.6, alpha, font: BODY, bold: true });
     }
   }
 }
@@ -279,7 +271,8 @@ export function drawFinishBoardArt(g) {
     }
     drawPortrait(ctx, horse, px + 21 + dx, y + 8, 18, { mood: isDnf ? "dizzy" : i === 0 ? "happy" : "neutral", t: g.time });
     const label = isDnf ? `DNF ${horse.name}` : `${i + 1}. ${horse.name}`;
-    plainText(ctx, fitText(ctx, label, 140, 14), px + 38 + dx, y + 8, 14, isDnf ? "#ff8a8a" : "#fff");
+    const lsz = fitSize(ctx, label, 140, 14);
+    plainText(ctx, fitText(ctx, label, 140, lsz), px + 38 + dx, y + 8, lsz, isDnf ? "#ff8a8a" : "#fff");
     if (!isDnf) plainText(ctx, `${g.visualFinishTime(horse).toFixed(1)}s`, px + pw - 14 + dx, y + 8, 13, "#c9c4ec", { align: "right", bold: false });
     ctx.restore();
   });
@@ -289,8 +282,6 @@ export function drawFinishBoardArt(g) {
 
 export function drawBoomArt(g) {
   const { ctx } = g;
-  const r = raceArt(g);
-  const now = g.time;
   for (const b of g.blasts) {
     if (b.age <= 0) continue;
     const t = b.age / 0.6;
@@ -335,22 +326,6 @@ export function drawBoomArt(g) {
         ctx.restore();
       }
     }
-  }
-  // comic lettering
-  for (const b of r.booms) {
-    const age = now - b.at;
-    if (age < 0) continue;
-    const pop = easeBack(age / 0.2);
-    const fade = 1 - clamp01((age - 0.8) / 0.5);
-    ctx.save();
-    ctx.translate(b.x, b.y - 40 - age * 22);
-    ctx.rotate(b.rot);
-    ctx.scale(pop, pop);
-    ctx.globalAlpha = fade;
-    burst(ctx, 0, 0, 62, 38, 12, age * 1.5);
-    inkFill(ctx, PAL.red, 3.5);
-    inkText(ctx, b.text, 0, 2, 34, "#ffe14a", { align: "center", sw: 6 });
-    ctx.restore();
   }
 }
 

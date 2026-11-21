@@ -1,19 +1,17 @@
 // Horse + jockey characters. Everything is drawn with canvas paths.
-// Each horse gets a hat or prop and a face quirk from its id, so the same horse
+// Each horse has a hat or prop and a face quirk set in the roster, so the same horse
 // looks the same on the betting screen, in the race and on the podium.
 // Coat color is the lane color. That is how you match a bet to a horse.
 
+import { accentOf } from "./horses_data.js";
+import { ACCESSORIES, TRAITS } from "./settings.js";
 import { INK, PAL, css, shade, hash, inkFill, inkCircle, inkEllipse, inkRect, inkLine, inkStar, inkText } from "./art.js";
 
-export const ACCESSORIES = [
-  "sunglasses", "tophat", "mustache", "bandana", "helmet", "partyhat", "monocle",
-  "bowtie", "flower", "crown", "propeller", "eyepatch", "cowboy", "headband",
-];
-export const TRAITS = ["tongue", "goofy", "buckteeth", "lashes", "grin", "none"];
+export { ACCESSORIES, TRAITS };
 
-// Honest. Same id, same quirks. Ids 0..13 get 14 different hats.
-export function quirks(id) {
-  return { acc: ACCESSORIES[id % ACCESSORIES.length], trait: TRAITS[(Math.floor(id / 3) + id * 5) % TRAITS.length] };
+// Honest. The hat and face come from the roster, so they follow the horse's name.
+export function quirks(horse) {
+  return { acc: horse.acc, trait: horse.trait };
 }
 
 // Coat colors that are very dark need a lighter mane or it vanishes.
@@ -278,14 +276,18 @@ function gear(ctx, acc, t) {
       inkEllipse(ctx, 0, -18.6, Math.max(0.8, Math.abs(sx)), 1.6, PAL.red, 1.4);
       break;
     }
-    case "eyepatch":
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 1.4;
+    case "chef":
+      // tall puffy white hat: three puffs, then a band that hides their bottoms
+      for (const [px, py, pr] of [[-4.2, -15.5, 4], [4.2, -15.5, 4], [0, -18, 4.6]]) inkCircle(ctx, px, py, pr, "#fff", 1.6);
+      inkRect(ctx, -6, -12.6, 12, 3.6, 1.2, "#fff", 1.8);
+      ctx.strokeStyle = "rgba(60,50,80,0.35)"; // two pleats on the band
+      ctx.lineWidth = 0.9;
       ctx.beginPath();
-      ctx.moveTo(-8, -6);
-      ctx.lineTo(10, -1);
+      ctx.moveTo(-2, -12.2);
+      ctx.lineTo(-2, -9.4);
+      ctx.moveTo(2, -12.2);
+      ctx.lineTo(2, -9.4);
       ctx.stroke();
-      inkEllipse(ctx, 3.2, -3, 4.6, 3.8, "#111", 1.6);
       break;
     case "cowboy":
       inkEllipse(ctx, -1, -9.6, 13, 3.2, "#9a6b3a", 1.8);
@@ -404,7 +406,7 @@ export function drawHead(ctx, coat, acc, trait, mood = "neutral", t = 0, opt = {
 // Hats are allowed to poke out of the frame. That is on purpose.
 export function drawPortrait(ctx, horse, x, y, size, opt = {}) {
   const { mood = "happy", t = 0, ring = INK, bg = "#fff4d6", flip = false } = opt;
-  const { acc, trait } = quirks(horse.id);
+  const { acc, trait } = quirks(horse);
   const r = size / 2;
   ctx.save();
   ctx.beginPath();
@@ -421,13 +423,13 @@ export function drawPortrait(ctx, horse, x, y, size, opt = {}) {
   const k = size / 40;
   ctx.scale(flip ? -k : k, k);
   ctx.translate(-6, 3); // head-space center is about (6, -3). nudge so the face fills the frame
-  drawHead(ctx, horse.color, acc, trait, mood, t);
+  drawHead(ctx, horse.coat, acc, trait, mood, t);
   ctx.restore();
 }
 
 // --- the jockey ------------------------------------------------------------
 // Drawn in horse space (see drawHorse). face: "grin", "worried", "neutral", "dizzy".
-function drawJockey(ctx, coat, lean, face, t, charred) {
+function drawJockey(ctx, accent, lean, face, t, charred) {
   const skin = charred ? "#3a3030" : "#f2c29b";
   const silk = charred ? "#4a4440" : "#ffffff";
   // boot
@@ -442,8 +444,8 @@ function drawJockey(ctx, coat, lean, face, t, charred) {
     ctx.beginPath();
     ctx.ellipse(0, 0, 4.4, 6, 0, 0, Math.PI * 2);
     ctx.clip();
-    ctx.fillStyle = css(coat);
-    ctx.fillRect(-5, -1.2, 10, 3.2); // sash in the lane color
+    ctx.fillStyle = css(accent);
+    ctx.fillRect(-5, -1.2, 10, 3.2); // sash in the accent color
     ctx.restore();
   }
   ctx.restore();
@@ -455,12 +457,12 @@ function drawJockey(ctx, coat, lean, face, t, charred) {
   const hxp = lean * 1.4 + 4.6;
   const hyp = -21.4;
   inkCircle(ctx, hxp, hyp, 5, skin, 2);
-  // helmet in the lane color with a little brim and a pom
+  // helmet in the accent color with a little brim and a pom
   ctx.beginPath();
   ctx.arc(hxp, hyp - 0.4, 5.3, Math.PI * 1.02, Math.PI * 1.98);
   ctx.lineTo(hxp + 7.4, hyp - 1.3);
   ctx.closePath();
-  inkFill(ctx, charred ? [70, 66, 62] : coat, 1.8);
+  inkFill(ctx, charred ? [70, 66, 62] : accent, 1.8);
   inkCircle(ctx, hxp - 0.4, hyp - 6.2, 1.5, "#fff", 1.1);
   // face
   ctx.strokeStyle = INK;
@@ -516,12 +518,13 @@ const SCALE = 0.95;
 // phase is leg cycles. opt: { mood, face, charred, t }
 export function drawHorse(ctx, x, y, heading, horse, phase, running, opt = {}) {
   const { mood = "neutral", face = "neutral", charred = false, t = 0, scale = 1 } = opt;
-  const { acc, trait } = quirks(horse.id);
+  const { acc, trait } = quirks(horse);
   const dir = Math.cos(heading) >= 0 ? 1 : -1;
   const a = phase * 2 * Math.PI;
-  const coat = charred ? [46, 42, 46] : horse.color;
+  const coat = charred ? [46, 42, 46] : horse.coat;
   const bob = running ? -Math.abs(Math.sin(a)) * 2 : 0;
   const squash = running ? Math.cos(2 * a) * 0.07 : 0; // lowest at each landing, stretched in the air
+  const uniform = charred ? [70, 66, 62] : accentOf(horse); // saddle cloth + leg wraps, same color as the rider
 
   ctx.save();
   ctx.translate(x, y);
@@ -544,6 +547,9 @@ export function drawHorse(ctx, x, y, heading, horse, phase, running, opt = {}) {
     const knee = [hipX + swing * 3.5 + (hipX > 0 ? 2 : -1), 9.5 - lift * 0.4];
     const foot = [hipX + swing * 7.5, 15.5 - lift];
     inkLine(ctx, [hip, knee, foot], legColor, 3.4);
+    // leg wrap: a short, slightly fatter stretch of the lower leg
+    const wrap = (u) => [knee[0] + (foot[0] - knee[0]) * u, knee[1] + (foot[1] - knee[1]) * u];
+    inkLine(ctx, [wrap(0.45), wrap(0.85)], uniform, 4.4);
     inkEllipse(ctx, foot[0] + 0.6, foot[1] + 0.8, 2.6, 1.8, "#3a2a22", 1.4);
   }
 
@@ -597,10 +603,22 @@ export function drawHorse(ctx, x, y, heading, horse, phase, running, opt = {}) {
   ctx.closePath();
   inkFill(ctx, mane, 1.8);
 
+  // saddle cloth under the jockey, clipped to the body so it hugs the back
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(0, -3 + bob, 17, 9, 0, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.beginPath();
+  ctx.roundRect(-10, -12 + bob, 13, 12, 2.5);
+  inkFill(ctx, uniform, 1.8);
+  ctx.fillStyle = css(shade(uniform, 0.45)); // light trim along the bottom edge
+  ctx.fillRect(-10, -2.8 + bob, 13, 2.2);
+  ctx.restore();
+
   // jockey sits on the back
   ctx.save();
   ctx.translate(-1, -2 + bob);
-  drawJockey(ctx, horse.color, running ? 3 : 0, charred ? "dizzy" : face, t, charred);
+  drawJockey(ctx, accentOf(horse), running ? 3 : 0, charred ? "dizzy" : face, t, charred);
   ctx.restore();
 
   // head, tipped down a little when running
@@ -625,13 +643,13 @@ export function drawHorse(ctx, x, y, heading, horse, phase, running, opt = {}) {
 
 // Small round face for the finish board and tight spots. Same head, no frame.
 export function drawMiniHead(ctx, horse, x, y, size, mood = "happy", t = 0) {
-  const { acc, trait } = quirks(horse.id);
+  const { acc, trait } = quirks(horse);
   ctx.save();
   ctx.translate(x, y);
   const k = size / 32;
   ctx.scale(k, k);
   ctx.translate(-6, 3);
-  drawHead(ctx, horse.color, acc, trait, mood, t);
+  drawHead(ctx, horse.coat, acc, trait, mood, t);
   ctx.restore();
 }
 
@@ -807,9 +825,4 @@ export function drawBookie(ctx, x, y, t, mood, talking, look) {
   }
   inkCircle(ctx, 0, 2, 6, "#f2b48a", 2);
   ctx.restore();
-}
-
-// A stand-in horse for scenes with no race (menu). Lane colors repeat.
-export function makeDemoHorse(id, color) {
-  return { id, color };
 }

@@ -5,7 +5,7 @@ export const SCREEN_HEIGHT = 720;
 export const TITLE = "Horse Racing Simulator";
 
 // Roster / card
-export const TOTAL_HORSES = 64;
+export const TOTAL_HORSES = 65; // must match the roster length, a test checks
 export const HORSES_PER_RACE = 5;
 export const RACES_PER_SESSION = 5;
 export const MAX_PARLAY_LEGS = 3;
@@ -43,16 +43,68 @@ export const RED = [200, 40, 40];
 export const GOLD = [218, 165, 32];
 export const PANEL = [55, 55, 55];
 
-// Stable coat colors assigned by horse ID.
-export const HORSE_COLORS = [
-  [220, 50, 50],
-  [50, 100, 220],
-  [40, 160, 70],
-  [230, 160, 40],
-  [150, 60, 180],
-  [40, 170, 180],
-  [220, 80, 140],
-  [90, 90, 90],
+// Coat colors by name. The roster (roster_raw.js) says which coat each horse wears.
+// Real coats first, then a few silly ones for the silly horses.
+export const COAT_COLORS = {
+  bay: [150, 90, 50],
+  "dark bay": [105, 62, 40],
+  chestnut: [180, 90, 40],
+  liver: [92, 52, 40],
+  black: [48, 44, 52],
+  grey: [150, 156, 166],
+  "dapple grey": [122, 128, 140],
+  white: [238, 236, 232],
+  palomino: [225, 180, 100],
+  buckskin: [200, 150, 82],
+  dun: [190, 160, 118],
+  cream: [236, 218, 180],
+  roan: [172, 116, 104],
+  "blue roan": [96, 108, 128],
+  champagne: [214, 184, 150],
+  sorrel: [200, 110, 60],
+  // silly
+  mint: [150, 210, 175],
+  lavender: [178, 150, 210],
+  gold: [235, 190, 60],
+  "bubblegum": [240, 160, 190],
+};
+
+// Running styles. style: -1 fast early and fades, +1 slow early and finishes strong.
+// lateKick: extra speed in the last stretch. Same numbers the game always used.
+export const PACE_STYLES = {
+  "front runner": { style: -0.9, lateKick: 0.1 },
+  "pace setter": { style: -0.6, lateKick: 0.25 },
+  stalker: { style: -0.3, lateKick: 0.5 },
+  steady: { style: 0, lateKick: 0.35 },
+  "late mover": { style: 0.3, lateKick: 0.7 },
+  closer: { style: 0.6, lateKick: 0.45 },
+  "deep closer": { style: 0.9, lateKick: 0.8 },
+  plodder: { style: 0.2, lateKick: 0.15 },
+};
+
+// Hats and props, and face quirks. Roster entries pick from these by name.
+export const ACCESSORIES = [
+  "sunglasses", "tophat", "mustache", "bandana", "helmet", "partyhat", "monocle",
+  "bowtie", "flower", "crown", "propeller", "chef", "cowboy", "headband",
+];
+export const TRAITS = ["tongue", "goofy", "buckteeth", "lashes", "grin", "none"];
+
+// Rider / outfit colors. Dealt out fresh each race, no two horses in a race share one.
+// Also the horse's color on the bet screen and its fans in the crowd.
+// Need at least HORSES_PER_RACE of these. Keep them far apart so they read at a glance.
+export const ACCENT_COLORS = [
+  [220, 50, 50], // red
+  [240, 130, 40], // orange
+  [240, 205, 50], // yellow
+  [140, 205, 60], // lime
+  [40, 160, 70], // green
+  [40, 170, 160], // teal
+  [70, 170, 235], // sky
+  [50, 90, 220], // blue
+  [140, 70, 190], // purple
+  [210, 60, 160], // magenta
+  [245, 140, 170], // pink
+  [140, 30, 60], // maroon
 ];
 
 // Sound mix. Tweak by ear.

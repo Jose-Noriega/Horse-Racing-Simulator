@@ -1,6 +1,6 @@
 # Horse Racing Simulator
 
-A party game. 64 horses, 8 races, 8 horses each. Take names and bets between
+A party game. 65 horses, 8 races, 8 horses each. Take names and bets between
 races, watch the field run, settle payouts.
 
 Runs in the browser. Hosted as a Cloudflare Worker with static assets. No
@@ -29,8 +29,8 @@ Click or type. `1`-`8` pick horses (while the Name box is active), `Tab` moves
 between boxes, `Enter` places the bet, `Ctrl+Z` undoes, `F5` starts the race,
 `F9` mutes. `F` (any screen but betting), `F11` or `Alt+Enter` goes fullscreen.
 On a Mac, F11 is taken by the system, so use `F` or `Option+Enter`.
-Exploding-horses mode: type `boom` on the menu screen to toggle it (a faint red
-dot shows while it's on), or add `?secret` to the url.
+Exploding-horses mode: type `boom` on any screen except mid-race to toggle it (a
+faint red dot shows in the corner while it's on), or add `?secret` to the url.
 
 ## Edit the game
 
@@ -56,15 +56,13 @@ dot shows while it's on), or add `?secret` to the url.
 
 Honest code (no DOM, no canvas): `race.js`, `betting.js`, `track.js` geometry,
 `crowd.js` build + passes, `horses_data.js`, `race_card.js`. These are tested.
-`test/reference.json` is numbers frozen from the original pygame version, so the
-port is checked against it. That Python code is in git history at `6d61b31`.
 
 Dishonest edge: `game.js` (state machine, input, race timing), `sounds.js`
 (WebAudio), `main.js` (loop).
 
 The look is all canvas code, no image files. `game.js` only calls into it:
 - `art.js` the Flash-style kit (ink outlines, panels, buttons, bubbles, text)
-- `characters.js` horses, portraits, the bookie. Each horse gets a hat and a face quirk from its id
+- `characters.js` horses, portraits, the bookie. Each horse has a hat and a face quirk set in the roster
 - `screens.js` menu, betting, results, summary
 - `racefx.js` race and setup screens, announcer quips, confetti, explosions, iris wipe
 - `scenery.js` the track and the world around it (cached), crowd gags, blimp

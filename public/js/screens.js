@@ -3,13 +3,13 @@
 
 import * as settings from "./settings.js";
 import { amountOnWin, displayedTicketMultiplier, displayedWinMultiplier, formatPlayer, isParlay, totalPool } from "./betting.js";
-import { getHorse } from "./horses_data.js";
+import { getHorse, accentOf } from "./horses_data.js";
 import { shortNum } from "./ui.js";
 import {
   INK, PAL, BODY, DISPLAY, css, hash, easeOut, easeBack, clamp01,
-  getLayer, panel, candyButton, ribbon, wobbleText, burst, puff, inkHeart, inkEllipse, inkLine, inkText, plainText, fitText, wrapText, bubble, marquee, inkRect, inkCircle, inkStar, inkFill, textWidth,
+  getLayer, panel, candyButton, ribbon, wobbleText, burst, puff, inkHeart, inkEllipse, inkLine, inkText, plainText, fitText, fitSize, wrapText, bubble, marquee, inkRect, inkCircle, inkStar, inkFill, textWidth,
 } from "./art.js";
-import { drawPortrait, drawBookie, drawHorse, makeDemoHorse } from "./characters.js";
+import { drawPortrait, drawBookie, drawHorse } from "./characters.js";
 import { shakeOffset, poolBump, drawBettingFx } from "./fx.js";
 import { BADGES, CORNER_TITLE, DNF_NOTE, isMistake, NO_BETS, NO_BETS_BUBBLE, PICK_HINT, PLATES, REFUND_BUBBLE, SUMMARY_NONE } from "./words.js";
 
@@ -266,10 +266,12 @@ export function drawBettingScreen(g) {
     drawPortrait(ctx, horse, rect.x + 28, cy, 38, { mood: picked ? "happy" : "neutral", t });
     const ink = picked ? INK : "#fff";
     const sub = picked ? "#5a4210" : "#c9c4ec";
-    plainText(ctx, fitText(ctx, `${picked ? pickIdx + 1 : i + 1}. ${horse.name}`, 270, 17), rect.x + 56, cy - 9, 17, ink);
+    const odds = `${i + 1}. ${horse.name}`; // lane number, the key that picks it. Pick order is the star.
+    const osz = fitSize(ctx, odds, 270, 17);
+    plainText(ctx, fitText(ctx, odds, 270, osz), rect.x + 56, cy - 9, osz, ink);
     const p = g.winProbs[horse.id] ?? 0;
     plainText(ctx, `Win chance ${(100 * p).toFixed(1)}%`, rect.x + 56, cy + 11, 13, sub);
-    // little bar in the horse's lane color
+    // little bar in the horse's accent color
     const bx = rect.x + 180;
     const bw = 150;
     ctx.beginPath();
@@ -278,7 +280,7 @@ export function drawBettingScreen(g) {
     ctx.fill();
     ctx.beginPath();
     ctx.roundRect(bx, cy + 6, Math.max(8, (p / maxP) * bw), 10, 5);
-    ctx.fillStyle = css(horse.color);
+    ctx.fillStyle = css(accentOf(horse));
     ctx.fill();
     ctx.lineWidth = 2;
     ctx.strokeStyle = INK;
@@ -483,7 +485,7 @@ export function drawBettingScreen(g) {
   let py = 176;
   for (const horse of g.field) {
     const onH = amountOnWin(g.pool, horse.id);
-    const odds = displayedWinMultiplier(g.pool, horse.id, g.winProbs);
+    const odds = displayedWinMultiplier(g.pool, horse.id);
     ctx.beginPath();
     ctx.roundRect(898, py - 2, 336, 38, 8);
     ctx.fillStyle = "#241a35";
@@ -492,7 +494,8 @@ export function drawBettingScreen(g) {
     ctx.strokeStyle = "#3d2f58";
     ctx.stroke();
     drawPortrait(ctx, horse, 919, py + 17, 28, { mood: "neutral", t });
-    plainText(ctx, fitText(ctx, horse.name, 118, 14.5), 940, py + 9, 14.5, "#fff");
+    const nsz = fitSize(ctx, horse.name, 118, 14.5);
+    plainText(ctx, fitText(ctx, horse.name, 118, nsz), 940, py + 9, nsz, "#fff");
     const ex = odds !== null && example > 0 ? `($${shortNum(example, 0)}->$${shortNum(example * odds)})` : "";
     plainText(ctx, fitText(ctx, ex, 120, 11.5), 940, py + 26, 11.5, "#8fdc9a", { bold: false });
     inkText(ctx, odds === null ? "—" : `${odds.toFixed(2)}x`, 1224, py + 13, 25, "#ffb62e", { align: "right", sw: 0 });
@@ -680,7 +683,6 @@ export function drawMenuScreen(g) {
   glove(c, 840 + Math.sin(t * 6) * 8, 434, Math.PI);
   inkText(c, "or press Enter", W / 2, 474, 15, "#fff", { align: "center", sw: 3.5, font: BODY, bold: true });
   inkText(c, "F9 mute   F fullscreen", 12, H - 12, 13, "#fff", { sw: 3.2, font: BODY, bold: true });
-  if (g.secret) inkCircle(c, W - 16, H - 16, 5, "#8a1c1c", 2); // faint tell that secret mode is on
 }
 
 // --- results ---------------------------------------------------------------
@@ -719,7 +721,8 @@ function podiumStep(c, cx, top, w, base, color, num, name, win, t) {
   c.fillStyle = "rgba(255,255,255,0.3)";
   c.fill();
   inkText(c, String(num), cx, top + 32, 38, "#fff", { align: "center", sw: 6 });
-  plainText(c, fitText(c, name, w - 14, 14.5), cx, top + 55, 14.5, "#fff", { align: "center" });
+  const psz = fitSize(c, name, w - 14, 14.5);
+  plainText(c, fitText(c, name, w - 14, psz), cx, top + 55, psz, "#fff", { align: "center" });
   plainText(c, win, cx, top + 71, 12, "#fff", { align: "center", bold: false });
 }
 
@@ -796,7 +799,8 @@ export function drawResultsScreen(g) {
     const dnf = g.exploded.has(h.id);
     drawPortrait(c, h, x + 16, y, 30, { mood: dnf ? "dizzy" : "sad", t });
     const line = dnf ? `DNF  ${h.name}` : `${h.place}. ${h.name}`;
-    plainText(c, fitText(c, line, 200, 15), x + 38, y - 7, 15, dnf ? "#ff8a8a" : "#e8ecff");
+    const rsz = fitSize(c, line, 200, 15);
+    plainText(c, fitText(c, line, 200, rsz), x + 38, y - 7, rsz, dnf ? "#ff8a8a" : "#e8ecff");
     plainText(c, dnf ? DNF_NOTE : pct(h), x + 38, y + 10, 12, "#9fb4d8", { bold: false });
   });
 
@@ -913,6 +917,8 @@ export function drawResultsScreen(g) {
     }
   }
 
+  drawWinsAndLosses(g, age);
+
   if (g.state === "review") {
     // looking back from betting or the summary: one way out, no Next
     g.btnReviewBack.label = g.reviewFrom === "summary" ? "Back to Summary" : "Back to Bets";
@@ -925,6 +931,89 @@ export function drawResultsScreen(g) {
   g.btnNext.x = 640;
   g.btnNext.y = 520;
   g.drawButton(g.btnNext, age > 2.5);
+}
+
+// Small panel under the receipt: what each player put in, got back, and the net.
+// Smaller than the receipt on purpose. The payouts are the main show.
+function drawWinsAndLosses(g, age) {
+  const { ctx: c } = g;
+  const rows = g.lastResults;
+  const a = easeOut((age - 1.2) / 0.6);
+  if (!rows.length || a <= 0) return;
+  const maxRows = 6;
+  const rowH = 24;
+  const shownRows = Math.min(rows.length, maxRows);
+  const x = 880, y = 496, w = 340, h = shownRows * rowH + 28;
+
+  // What each row says. Colors: green win, red loss, grey even.
+  const cells = rows.map((p) => {
+    const win = p.net > 0.005, lose = p.net < -0.005;
+    return {
+      who: formatPlayer(p.playerNumber, p.personName),
+      bet: `$${shortNum(p.staked)}`,
+      paid: `$${shortNum(p.paid)}`,
+      net: `${win ? "+" : lose ? "-" : ""}$${shortNum(Math.abs(p.net))}`,
+      netColor: win ? "#7de08a" : lose ? "#ff8a8a" : "#9fb4d8",
+    };
+  });
+
+  // Columns are sized from the widest real amount in the list, so big bets get room.
+  // The name takes whatever is left. If the amounts are huge, shrink the font a bit first.
+  const ARROW_GAP = 30; // room for the arrow between bet and paid
+  const COLON_GAP = 20; // room for the colon between paid and net
+  const NAME_MIN = 64;
+  const widest = (key, size, bold) => Math.max(...cells.map((cell) => textWidth(c, cell[key], size, BODY, bold)));
+  let sz = 13;
+  let wBet, wPaid, wNet;
+  for (; ; sz -= 0.5) {
+    wBet = widest("bet", sz, false);
+    wPaid = widest("paid", sz, false);
+    wNet = widest("net", sz, true);
+    const room = w - 14 - 12 - wBet - wPaid - wNet - ARROW_GAP - COLON_GAP;
+    if (room >= NAME_MIN || sz <= 10) break;
+  }
+  const netR = x + w - 12;
+  const netL = netR - wNet;
+  const colColon = netL - COLON_GAP / 2;
+  const paidR = netL - COLON_GAP;
+  const paidL = paidR - wPaid;
+  const colArrow = paidL - ARROW_GAP / 2;
+  const betR = paidL - ARROW_GAP;
+  const betL = betR - wBet;
+  const nameW = Math.max(30, betL - 8 - (x + 14));
+
+  c.save();
+  c.globalAlpha = a;
+  panel(c, x, y, w, h, { fill: "#2c3250", r: 10 });
+  const drawRow = (cell, ry) => {
+    plainText(c, fitText(c, cell.who, nameW, sz), x + 14, ry, sz, "#e8ecff");
+    plainText(c, cell.bet, betR, ry, sz, "#c9c4ec", { align: "right", bold: false });
+    // arrow: bet --> paid. Drawn as lines so it doesn't depend on the font.
+    c.strokeStyle = "#8a93b8";
+    c.lineWidth = 1.6;
+    c.lineCap = "round";
+    c.lineJoin = "round";
+    c.beginPath();
+    c.moveTo(colArrow - 7, ry - 1);
+    c.lineTo(colArrow + 7, ry - 1);
+    c.moveTo(colArrow + 2.5, ry - 5);
+    c.lineTo(colArrow + 7, ry - 1);
+    c.lineTo(colArrow + 2.5, ry + 3);
+    c.stroke();
+    plainText(c, cell.paid, paidR, ry, sz, "#c9c4ec", { align: "right", bold: false });
+    plainText(c, ":", colColon, ry, sz, "#8a93b8", { align: "center" }); // paid : net
+    plainText(c, cell.net, netR, ry, sz, cell.netColor, { align: "right" });
+  };
+  // 6 or fewer: sit still. More: crawl up forever, the list wraps around.
+  // Starts from the top once the panel has faded in, so the biggest winner shows first.
+  const crawl = rows.length > maxRows;
+  const scroll = crawl ? (Math.max(0, age - 2.4) * 18) % (rows.length * rowH) : 0;
+  c.beginPath();
+  c.rect(x, y + 14, w, shownRows * rowH);
+  c.clip();
+  const shown = crawl ? rows.length + maxRows : rows.length;
+  for (let k = 0; k < shown; k++) drawRow(cells[k % cells.length], y + 26 + k * rowH - scroll);
+  c.restore();
 }
 
 // --- summary ---------------------------------------------------------------
@@ -1039,7 +1128,7 @@ export function drawSummaryScreen(g) {
   inkText(c, "FINAL PAYOUTS", 370, 190, 26, PAL.gold, { sw: 4 });
   let y = 232;
   if (!g.sessionPayouts.size) {
-    drawPortrait(c, { id: 5, color: settings.HORSE_COLORS[0] }, 470, 330, 110, { mood: "sad", t });
+    drawPortrait(c, getHorse(5), 470, 330, 110, { mood: "sad", t });
     plainText(c, "No payouts.", 560, 320, 22, "#e8ecff");
     plainText(c, SUMMARY_NONE, 560, 350, 14, "#9fb4d8", { bold: false });
   } else {

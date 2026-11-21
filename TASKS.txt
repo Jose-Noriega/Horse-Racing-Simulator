@@ -18,7 +18,7 @@ DONE
   [x] Secret mode (?secret): late horses blow up
   [x] 6 horses per race works (HORSES_PER_RACE is a setting)
   [x] Rebuilt as a Cloudflare Worker (static assets), replaced the pygame code
-  [x] Tests: JS vs numbers frozen from the old Python version
+  [x] Tests for race and betting math
 
 
 NEXT
@@ -38,7 +38,4 @@ NOTES
 --------------------------------------------------------------------------------
 - Race math and betting math are the parts worth testing. Keep them free of
   canvas and DOM.
-- test/reference.json is a frozen snapshot. It came from the Python version.
-  If you change the math on purpose, update the expected numbers by hand
-  (or delete the check). Don't try to regenerate it, the Python is gone.
 ================================================================================

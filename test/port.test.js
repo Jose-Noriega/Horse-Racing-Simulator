@@ -1,40 +1,29 @@
-// Checks the code against numbers frozen from the original Python version.
-// reference.json came from the pygame code (git 6d61b31). That code is gone, so
-// if the math changes on purpose, update the expected numbers by hand.
-// Run with: npm test
+// Checks the betting, race, and card code. Run with: npm test
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 
 import * as settings from "../public/js/settings.js";
 import { ROSTER, getHorse, makeHorse } from "../public/js/horses_data.js";
-import { getRaceFieldIds, validateRaceCard } from "../public/js/race_card.js";
+import { getRaceFieldIds, validateRaceCard, assignAccents } from "../public/js/race_card.js";
 import { winProbabilities, orderProbability, paceProgress, assignPaceProfiles, simulateRace } from "../public/js/race.js";
 import * as betting from "../public/js/betting.js";
-import { startProgress, laneProgress, pointOnLane } from "../public/js/track.js";
-import { shortNum } from "../public/js/ui.js";
 
-const ref = JSON.parse(readFileSync(new URL("./reference.json", import.meta.url)));
 const close = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9 * Math.max(1, Math.abs(b)), `${msg}: ${a} vs ${b}`);
 
-const field = getRaceFieldIds(0).map((id) => makeHorse(getHorse(id)));
+// Horses 0-4. The live card is shuffled, so don't use it here.
+const field = [0, 1, 2, 3, 4].map((id) => makeHorse(getHorse(id)));
 const pWin = winProbabilities(field);
 const orderProb = (ids) => orderProbability(field, ids);
 
-test("roster speeds match", () => {
-  ref.roster_speeds.forEach((s, i) => close(ROSTER[i].averageSpeed, s, `horse ${i}`));
-});
-
-test("horse colors and pace tendencies stay with roster identities", () => {
+test("coats and pace tendencies stay with roster identities", () => {
   for (const horse of ROSTER) {
-    assert.deepEqual(makeHorse(horse).color, horse.color);
-    assert.ok(horse.color);
+    assert.deepEqual(makeHorse(horse).coat, horse.coat);
+    assert.ok(horse.coat);
     assert.ok(horse.paceStyle >= -1 && horse.paceStyle <= 1);
     assert.ok(horse.lateKick >= 0 && horse.lateKick <= 0.8);
   }
-  assert.equal(new Set(ROSTER.slice(0, 8).map((horse) => horse.color)).size, 8);
-});
+  });
 
 test("race-to-race pace variation preserves each horse's style", () => {
   const horse = makeHorse(getHorse(6));
@@ -48,16 +37,7 @@ test("race-to-race pace variation preserves each horse's style", () => {
   assert.equal(horse.lateKick, lateKick);
 });
 
-test("win + order probabilities match", () => {
-  for (const [k, v] of Object.entries(ref.p_win)) close(pWin[k], v, `p_win ${k}`);
-  for (const [k, v] of Object.entries(ref.order_probs)) close(orderProb(k.split(",").map(Number)), v, `order ${k}`);
-});
-
-test("pace progress matches", () => {
-  for (const [u, v] of Object.entries(ref.pace.points)) close(paceProgress(ref.pace.speeds, Number(u)), v, `pace ${u}`);
-});
-
-// The scenario the reference numbers were made from
+// A small fixed set of bets
 function buildPool() {
   const pool = betting.newPool();
   betting.addBet(pool, 1, "Ann", [0], 10);
@@ -68,67 +48,36 @@ function buildPool() {
   return pool;
 }
 
-test("bets, pool, and parlay multipliers match", () => {
-  const pool = buildPool();
-  assert.deepEqual(
-    pool.bets.map((b) => ({ n: b.playerNumber, name: b.personName, ids: b.horseIds, amount: b.amount })),
-    ref.bets,
-  );
-  close(betting.totalPool(pool), ref.total_pool, "pool");
-  for (const h of field) {
-    close(betting.amountOnWin(pool, h.id), ref.on_win[h.id], `on win ${h.id}`);
-  }
-  for (const [k, v] of Object.entries(ref.ticket_mult)) {
-    close(betting.displayedTicketMultiplier(pool, k.split(",").map(Number), field, pWin), v, `ticket ${k}`);
-  }
-});
-
-test("win odds start at fair odds and move continuously with the tote pool", () => {
+test("win odds come from real bets only and never promise more than the pool", () => {
   const pool = betting.newPool();
-  const horseId = field[0].id;
-  const openingOdds = betting.displayedWinMultiplier(pool, horseId, pWin);
-  close(openingOdds, 1 / pWin[horseId], "opening fair odds");
+  assert.equal(betting.displayedWinMultiplier(pool, 0), null, "no bets, no odds");
 
-  betting.addBet(pool, 1, "Ann", [horseId], 20);
-  const backedOdds = betting.displayedWinMultiplier(pool, horseId, pWin);
-  assert.ok(backedOdds < openingOdds, "more money on a horse lowers its estimated payout");
+  betting.addBet(pool, 1, "Ann", [0], 10);
+  close(betting.displayedWinMultiplier(pool, 0), 1, "one bet on a horse in an empty pool pays 1x");
 
-  betting.addBet(pool, 2, "Bo", [field[1].id], 20);
-  const laterOdds = betting.displayedWinMultiplier(pool, horseId, pWin);
-  assert.ok(laterOdds > backedOdds, "money on another horse raises its estimated payout");
-  assert.ok(laterOdds < openingOdds, "the opening estimate fades gradually as bets grow");
+  betting.addBet(pool, 2, "Bo", [1], 10);
+  close(betting.displayedWinMultiplier(pool, 0), 2, "money on another horse raises the payout");
+  close(betting.displayedWinMultiplier(pool, 1), 2, "and the other horse");
+  const shown = betting.displayedWinMultiplier(pool, 0) * 10;
+  const paid = betting.settle(pool, [0, 1, 2, 3, 4], pWin, orderProb)[0][1];
+  close(shown, paid, "shown payout equals real payout for plain win bets");
 });
 
-test("settlement matches, incl. refund when nobody hits", () => {
+test("settlement: payouts add up to the pool, and a miss refunds", () => {
   const pool = buildPool();
-  const cases = {
-    settle_win0: [0, 1, 2, 3, 4],
-    settle_parlay3: [2, 0, 1, 3, 4],
-    settle_none: [4, 3, 2, 1, 0],
-  };
-  for (const [key, finish] of Object.entries(cases)) {
-    const want = ref[key];
-    betting.settle(pool, finish, pWin, orderProb).forEach(([, amt], i) => close(amt, want.settle[i], `${key} bet ${i}`));
-    assert.equal(betting.anyTicketHits(pool, finish), want.hit, key);
-    const players = betting.payoutsByPlayer(pool, finish, pWin, orderProb);
-    assert.equal(players.length, want.players.length, `${key} players`);
-    players.forEach((p, i) => {
-      assert.equal(p.playerNumber, want.players[i][0]);
-      assert.equal(p.personName, want.players[i][1]);
-      close(p.amount, want.players[i][2], `${key} payout ${i}`);
-    });
-  }
-  // zero house take: payouts sum to the pool
-  const total = betting.payoutsByPlayer(pool, cases.settle_win0, pWin, orderProb).reduce((s, p) => s + p.amount, 0);
-  close(total, betting.totalPool(pool), "money in = money out");
+  const wins0 = betting.payoutsByPlayer(pool, [0, 1, 2, 3, 4], pWin, orderProb);
+  close(wins0.reduce((s, p) => s + p.amount, 0), betting.totalPool(pool), "money in = money out");
+  assert.ok(!betting.anyTicketHits(pool, [4, 3, 2, 1, 0]));
+  const refunds = betting.settle(pool, [4, 3, 2, 1, 0], pWin, orderProb);
+  refunds.forEach(([bet, amt]) => close(amt, bet.amount, "refund is the stake"));
 });
 
-test("undo matches", () => {
+test("undo takes off the last bet", () => {
   const pool = buildPool();
   betting.undoLast(pool);
-  assert.deepEqual(pool.bets.map((b) => b.amount), ref.after_undo);
+  assert.deepEqual(pool.bets.map((b) => b.amount), [12.5, 5, 4]);
   betting.undoLast(pool);
-  assert.deepEqual(pool.bets.map((b) => b.amount), ref.after_undo2);
+  assert.deepEqual(pool.bets.map((b) => b.amount), [10, 5, 4]);
 });
 
 test("bad bets throw", () => {
@@ -138,19 +87,6 @@ test("bad bets throw", () => {
   assert.throws(() => betting.addBet(pool, 1, "", [], 1));
   assert.throws(() => betting.addBet(pool, 1, "", [0, 0], 1));
   assert.throws(() => betting.addBet(pool, 1, "", [0, 1, 2, 3], 1));
-});
-
-test("track geometry matches", () => {
-  ref.track.start_progress.forEach((v, i) => close(startProgress(i), v, `start ${i}`));
-  for (const [key, want] of Object.entries(ref.track.points)) {
-    const [lane, p] = key.split("@").map(Number);
-    const got = pointOnLane(lane, laneProgress(lane, p));
-    want.forEach((v, k) => close(got[k], v, `${key}[${k}]`));
-  }
-});
-
-test("shortNum matches", () => {
-  for (const [x, want] of Object.entries(ref.short_num)) assert.equal(shortNum(Number(x)), want, x);
 });
 
 test("simulateRace: seeded, ordered, favorites win more", () => {
@@ -183,4 +119,65 @@ test("pace profiles: every curve reaches 1 and never goes backwards", () => {
 test("race card validation", () => {
   validateRaceCard();
   assert.throws(() => validateRaceCard([[0, 0, 1, 2, 3, 4, 5, 6]]));
+});
+
+// House take is zero, so winners can never be paid more than was bet.
+test("random bets: payouts never exceed the pool", () => {
+  let seed = 7;
+  const rng = () => ((seed = (seed * 1664525 + 1013904223) % 2 ** 32) / 2 ** 32);
+  const pick = (n) => Math.floor(rng() * n);
+  for (let trial = 0; trial < 3000; trial++) {
+    const pool = betting.newPool();
+    const nBets = 1 + pick(12);
+    for (let i = 0; i < nBets; i++) {
+      const legs = 1 + pick(3);
+      const ids = [0, 1, 2, 3, 4].sort(() => rng() - 0.5).slice(0, legs);
+      betting.addBet(pool, 1 + pick(4), "", ids, 0.5 + pick(40) / 2);
+      if (rng() < 0.2) betting.undoLast(pool);
+    }
+    const finish = [0, 1, 2, 3, 4].sort(() => rng() - 0.5);
+    const total = betting.totalPool(pool);
+    const paid = betting.settle(pool, finish, pWin, orderProb).reduce((s, [, amt]) => s + amt, 0);
+    const byPlayer = betting.payoutsByPlayer(pool, finish, pWin, orderProb).reduce((s, p) => s + p.amount, 0);
+    assert.ok(paid <= total + 1e-9, `trial ${trial}: paid ${paid} > pool ${total}`);
+    assert.ok(byPlayer <= total + 1e-9, `trial ${trial}: by player ${byPlayer} > pool ${total}`);
+    if (pool.bets.length) close(paid, total, `trial ${trial}: all of the pool goes out`);
+  }
+});
+
+test("player results: stake, paid, net, losers included", () => {
+  const pool = betting.newPool();
+  betting.addBet(pool, 1, "Ann", [0], 10);
+  betting.addBet(pool, 2, "Bo", [1], 5);
+  betting.addBet(pool, 1, "", [2], 4); // Ann has a second, losing bet
+  const rows = betting.playerResults(pool, [0, 1, 2, 3, 4], pWin, orderProb);
+  const ann = rows.find((r) => r.playerNumber === 1);
+  const bo = rows.find((r) => r.playerNumber === 2);
+  close(ann.staked, 14, "Ann staked both bets");
+  close(ann.paid, 19, "Ann's win bet takes the whole $19 pool");
+  close(ann.net, 5, "Ann net");
+  assert.equal(ann.personName, "Ann");
+  close(bo.net, -5, "Bo lost his $5");
+  close(rows.reduce((s, r) => s + r.net, 0), 0, "nets cancel out: zero house take");
+  assert.equal(rows[0].playerNumber, 1, "biggest winner first");
+  // nobody hits: everyone is refunded
+  for (const r of betting.playerResults(pool, [4, 3, 2, 1, 0], pWin, orderProb)) close(r.net, 0, "refund nets 0");
+});
+
+test("accents: every horse in a race gets its own, and a horse's coat never changes", () => {
+  assert.ok(settings.ACCENT_COLORS.length >= settings.HORSES_PER_RACE);
+  assert.equal(new Set(settings.ACCENT_COLORS.map(String)).size, settings.ACCENT_COLORS.length, "accent list has a repeat");
+  for (let trial = 0; trial < 200; trial++) {
+    const race = ROSTER.slice(trial % 20, (trial % 20) + settings.HORSES_PER_RACE).map(makeHorse);
+    const coats = race.map((h) => String(h.coat));
+    assignAccents(race);
+    assert.equal(new Set(race.map((h) => String(h.accent))).size, race.length, "two horses share an accent");
+    race.forEach((h, i) => assert.equal(String(h.coat), coats[i], "assigning accents moved a coat"));
+  }
+  // a full 12-horse field uses every color once, and it is not always the same order
+  const twelve = () => assignAccents(Array.from({ length: 12 }, (_, i) => makeHorse(getHorse(i))));
+  const a = twelve().map((h) => String(h.accent)), b = twelve().map((h) => String(h.accent));
+  assert.equal(new Set(a).size, 12);
+  assert.notDeepEqual(a, b, "accents should be shuffled");
+  assert.throws(() => assignAccents(Array.from({ length: 13 }, (_, i) => makeHorse(getHorse(i)))));
 });

@@ -187,6 +187,13 @@ export function fitText(ctx, str, maxW, size, font = BODY, bold = true) {
   return s + "...";
 }
 
+// Shrink the font (down to minScale of size) so str fits maxW. Pair with fitText for what still won't fit.
+export function fitSize(ctx, str, maxW, size, minScale = 0.7, font = BODY, bold = true) {
+  const w = textWidth(ctx, str, size, font, bold);
+  if (w <= maxW) return size;
+  return Math.max(size * minScale, size * (maxW / w));
+}
+
 // Split a string into at most maxLines lines that fit maxW. The last line gets "..." if cut.
 export function wrapText(ctx, str, maxW, size, maxLines = 2, font = BODY, bold = true) {
   const words = str.split(" ");

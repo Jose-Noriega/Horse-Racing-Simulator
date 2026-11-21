@@ -6,11 +6,11 @@
 import * as settings from "./settings.js";
 import {
   newPool, clearPool, addBet, undoLast, removeBet, formatPlayer, isParlay, totalPool, amountOnWin,
-  displayedWinMultiplier, displayedTicketMultiplier, anyTicketHits, payoutsByPlayer,
+  displayedWinMultiplier, displayedTicketMultiplier, anyTicketHits, payoutsByPlayer, playerResults,
 } from "./betting.js";
-import { getHorse, makeHorse } from "./horses_data.js";
+import { getHorse, makeHorse, accentOf } from "./horses_data.js";
 import { assignPaceProfiles, orderProbability, paceProgress, simulateRace, winProbabilities } from "./race.js";
-import { getRaceFieldIds } from "./race_card.js";
+import { getRaceFieldIds, assignAccents } from "./race_card.js";
 import { laneProgress, pointOnLane } from "./track.js";
 import { buildCrowd, detectPasses } from "./crowd.js";
 import { Sounds } from "./sounds.js";
@@ -25,7 +25,7 @@ const { SCREEN_WIDTH: W, SCREEN_HEIGHT: H, HORSES_PER_RACE: N, RACES_PER_SESSION
 
 const FORM_FIELDS = ["player", "name", "wager"];
 // What the results screen reads. Saved when a race is settled so "Last Results" can show it again.
-const RESULT_VIEW_KEYS = ["raceIndex", "raceResult", "winProbs", "exploded", "poolRefunded", "lastPayouts"];
+const RESULT_VIEW_KEYS = ["raceIndex", "raceResult", "winProbs", "exploded", "poolRefunded", "lastPayouts", "lastResults"];
 const COUNTDOWN_SECONDS = 3.0;
 const DUST_LIFE = 0.6;
 const STARTER_POS = [380, 470]; // in the infield, just left of the start line
@@ -67,8 +67,8 @@ export class Game {
   constructor(canvas, { secret = false } = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
-    this.secret = secret; // ?secret or type "boom" on the menu: horses after 4th blow up
-    this.secretKeys = ""; // last few letters typed on the menu
+    this.secret = secret; // ?secret or type "boom" (any screen but the race): horses after 4th blow up
+    this.secretKeys = ""; // last few letters typed on any screen but the race
     this.sounds = new Sounds(N);
 
     // The canvas never draws straight to a mirror of itself. lastFrame is the
@@ -98,6 +98,7 @@ export class Game {
     this.payoutScrollUp = null; // receipt arrows, set by the draw when the list overflows
     this.payoutScrollDown = null;
     this.lastPayouts = [];
+    this.lastResults = []; // every player's bet / paid / net, losers too
     this.poolRefunded = false;
     this.winProbs = {};
 
@@ -308,6 +309,7 @@ export class Game {
           this.sounds.play("clear");
         } else if (this.btnUndoBet.hit(pos)) this.undoBet();
         else if (this.btnStartRace.hit(pos)) this.openSetup();
+        else this.activeField = null; // clicked empty space: unselect the box
         return;
       }
       case "setup":
@@ -352,13 +354,20 @@ export class Game {
       }
       return;
     }
-    // Hidden toggle: type "boom" on the menu. Same as ?secret in the url.
-    if (this.state === "menu" && e.key.length === 1) {
+    // Hidden toggle: type "boom" on any screen except mid-race. Same as ?secret in the url.
+    if (this.state !== "race" && e.key.length === 1) {
       this.secretKeys = (this.secretKeys + e.key.toLowerCase()).slice(-4);
       if (this.secretKeys === "boom") {
         this.secretKeys = "";
         this.secret = !this.secret;
         this.sounds.play("boom");
+        // Hack: on the betting screen the Name box already typed "boo". Take it back.
+        // So a horse owner named "Boom" can't be typed. Not worth fixing.
+        if (this.state === "betting" && this.activeField === "name" && /boo$/i.test(this.nameText)) {
+          this.nameText = this.nameText.slice(0, -3);
+        }
+        e.preventDefault();
+        return;
       }
     }
     // Plain F too. F11 is the "Show Desktop" key on a Mac, so it never gets here.
@@ -422,8 +431,10 @@ export class Game {
     }
     if (key === "Tab") {
       e.preventDefault();
-      const idx = FORM_FIELDS.indexOf(this.activeField);
-      this.activeField = FORM_FIELDS[(idx + (e.shiftKey ? FORM_FIELDS.length - 1 : 1)) % FORM_FIELDS.length];
+      const idx = FORM_FIELDS.indexOf(this.activeField); // -1 when nothing is selected
+      this.activeField = this.activeField === null && e.shiftKey
+        ? FORM_FIELDS[FORM_FIELDS.length - 1]
+        : FORM_FIELDS[(idx + (e.shiftKey ? FORM_FIELDS.length - 1 : 1)) % FORM_FIELDS.length];
       return;
     }
     if (key === "Enter") {
@@ -431,6 +442,12 @@ export class Game {
       return;
     }
     if (key === " ") e.preventDefault(); // no page scroll
+
+    // No box selected (clicked empty space). Typing goes nowhere, but 1-N still picks horses.
+    if (!this.activeField) {
+      if (/^[1-9]$/.test(key) && Number(key) <= N) this.toggleOrAddPick(Number(key) - 1);
+      return;
+    }
 
     if (key === "Backspace") {
       if (this.activeField === "player") {
@@ -472,6 +489,7 @@ export class Game {
 
   loadCurrentField() {
     this.field = getRaceFieldIds(this.raceIndex).map((id) => makeHorse(getHorse(id)));
+    assignAccents(this.field);
     this.field.forEach((h, lane) => {
       h.laneIndex = lane;
     });
@@ -479,6 +497,7 @@ export class Game {
     this.betScroll = 0;
     this.raceResult = null;
     this.lastPayouts = [];
+    this.lastResults = [];
     this.poolRefunded = false;
     this.selectedLanes = [];
     this.winProbs = winProbabilities(this.field);
@@ -579,7 +598,7 @@ export class Game {
     this.sparks = [];
     this.boomTime = null;
     this.countdown = null;
-    this.crowd = buildCrowd(this.field.map((h) => h.id), this.field.map((h) => h.color));
+    this.crowd = buildCrowd(this.field.map((h) => h.id), this.field.map((h) => accentOf(h)));
     this.cheerUntil.clear();
     this.cheerLevel = {};
     this.passOrder = this.field.map((h) => h.id);
@@ -668,6 +687,7 @@ export class Game {
     const finishIds = this.raceResult.ordered.map((h) => h.id);
     this.poolRefunded = this.pool.bets.length > 0 && !anyTicketHits(this.pool, finishIds);
     this.lastPayouts = payoutsByPlayer(this.pool, finishIds, this.winProbs, (ids) => orderProbability(this.field, ids));
+    this.lastResults = playerResults(this.pool, finishIds, this.winProbs, (ids) => orderProbability(this.field, ids));
     for (const payout of this.lastPayouts) {
       const [prevName, prevAmt] = this.sessionPayouts.get(payout.playerNumber) ?? ["", 0];
       this.sessionPayouts.set(payout.playerNumber, [payout.personName || prevName, prevAmt + payout.amount]);
@@ -803,7 +823,7 @@ export class Game {
           this.sparks.push({
             kind, x: horse.x, y: horse.y - 6,
             vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd + vyBias,
-            age: wait, life: rand(...life), r: rand(...radius), color: horse.color,
+            age: wait, life: rand(...life), r: rand(...radius), color: horse.coat,
           });
         }
       };
@@ -934,6 +954,13 @@ export class Game {
       case "results": this.drawResults(); break;
       case "review": this.drawReview(); break;
       case "summary": this.drawSummary(); break;
+    }
+    if (this.secret) {
+      // faint tell that secret mode is on, on every screen
+      ctx.beginPath();
+      ctx.arc(W - 16, H - 16, 5, 0, Math.PI * 2);
+      ctx.fillStyle = "#8a1c1c";
+      ctx.fill();
     }
     this.drawFade();
     const wantPointer = this.hoverButton || (this.state === "betting" && (

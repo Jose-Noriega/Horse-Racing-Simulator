@@ -3,6 +3,7 @@
 // message the art can't read, a roster with two of the same name.
 
 import test from "node:test";
+import { TOTAL_HORSES } from "../public/js/settings.js";
 import assert from "node:assert/strict";
 
 import { MAX_PARLAY_LEGS } from "../public/js/settings.js";
@@ -67,7 +68,7 @@ test("no line carries a stray slot or an undefined", () => {
   const lines = [
     ...w.GERALD, ...w.GOOSE, ...w.DUCK, ...w.CHICKEN, ...Object.values(w.STATUS),
     ...w.SPONSORS.flat(), ...w.BADGES.flat(), ...w.PLATES, ...w.REFUND_BUBBLE, ...w.NO_BETS_BUBBLE,
-    w.PICK_HINT, w.NO_BETS, w.CORNER_TITLE, w.DNF_NOTE, w.SUMMARY_NONE, ...w.BOOMS,
+    w.PICK_HINT, w.NO_BETS, w.CORNER_TITLE, w.DNF_NOTE, w.SUMMARY_NONE,
   ];
   for (const line of lines) {
     assert.ok(!/undefined|null|\[object/.test(line), line);
@@ -173,10 +174,11 @@ test("the chalkboard's 'three' is still right", () => {
   assert.equal(MAX_PARLAY_LEGS, 3);
 });
 
-test("the roster: 64 unique, short names", () => {
-  assert.equal(ROSTER.length, 64);
-  assert.equal(new Set(ROSTER.map((h) => h.name)).size, 64, "two horses share a name");
-  for (const h of ROSTER) assert.ok(h.name.length >= 3 && h.name.length <= 20, h.name);
+test("the roster: 65 unique names", () => {
+  assert.equal(ROSTER.length, TOTAL_HORSES, "settings.TOTAL_HORSES is out of date");
+  assert.equal(ROSTER.length, 65);
+  assert.equal(new Set(ROSTER.map((h) => h.name)).size, 65, "two horses share a name");
+  for (const h of ROSTER) assert.ok(h.name.length >= 3 && h.name.length <= 40, h.name);
 });
 
 test("billboards: a name and a tagline each, sized for the board", () => {

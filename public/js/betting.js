@@ -10,7 +10,6 @@ import { MAX_PARLAY_LEGS } from "./settings.js";
 import { STATUS } from "./words.js"; // the messages live there so the art can read them
 
 const sameIds = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
-const OPENING_POOL_SIZE = 100; // virtual pool used only to initialize tote estimates
 
 export function isParlay(bet) {
   return bet.horseIds.length > 1;
@@ -167,17 +166,31 @@ export function payoutsByPlayer(pool, finishIds, pWin, orderProb) {
   return [...grouped.values()].sort((a, b) => b.amount - a.amount || a.playerNumber - b.playerNumber);
 }
 
-// Estimated win-bet return, combining a probability-weighted opening pool with
-// real wagers so the tote moves continuously from its opening odds.
-export function displayedWinMultiplier(pool, horseId, pWin = null) {
+// Every player who bet: what they put in, what came back, and the difference.
+// Losers are in here too (payoutsByPlayer leaves them out). A refund nets to 0.
+export function playerResults(pool, finishIds, pWin, orderProb) {
+  const grouped = new Map();
+  for (const [bet, payout] of settle(pool, finishIds, pWin, orderProb)) {
+    if (!grouped.has(bet.playerNumber)) {
+      grouped.set(bet.playerNumber, { playerNumber: bet.playerNumber, personName: "", staked: 0, paid: 0, net: 0 });
+    }
+    const row = grouped.get(bet.playerNumber);
+    row.staked += bet.amount;
+    row.paid += payout;
+    row.net = row.paid - row.staked;
+    if (bet.personName) row.personName = bet.personName;
+  }
+  return [...grouped.values()].sort((a, b) => b.net - a.net || a.playerNumber - b.playerNumber);
+}
+
+// Win-bet return if the race ended now: the whole pool over the money on this horse.
+// Real bets only. null until somebody bets. Parlays on the same horse also share
+// the pool, so a win bet can still pay a bit less than this.
+export function displayedWinMultiplier(pool, horseId) {
   const onHorse = amountOnWin(pool, horseId);
   const total = totalPool(pool);
-  if (pWin && horseId in pWin) {
-    const chance = Math.max(pWin[horseId], 1e-9);
-    return (OPENING_POOL_SIZE + total) / (OPENING_POOL_SIZE * chance + onHorse);
-  }
   if (onHorse > 0 && total > 0) return total / onHorse;
-  if (total > 0) return total + 1;
+  if (total > 0) return total + 1; // nobody on this horse yet: a new $1 would take the whole pool
   return null;
 }
 
@@ -186,7 +199,7 @@ export function displayedWinMultiplier(pool, horseId, pWin = null) {
 export function displayedTicketMultiplier(pool, horseIds, horses, pWin) {
   if (!horseIds.length) return null;
   const ids = [...horseIds];
-  if (ids.length === 1) return displayedWinMultiplier(pool, ids[0], pWin);
+  if (ids.length === 1) return displayedWinMultiplier(pool, ids[0]);
 
   const pOrder = orderProbability(horses, ids);
   const fair = parlayBonus(ids.length) / Math.max(pOrder, 1e-9);

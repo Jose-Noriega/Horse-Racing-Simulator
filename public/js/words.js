@@ -53,8 +53,6 @@ export const GERALD = [
   "gerald is the goose. the man was never gerald. i'm sorry.",
 ];
 
-export const BOOMS = ["BOOM!", "WHOOPS", "OOPS!", "NO."];
-
 const MID_LINES = [
   "{last} is in last and i'm so proud of them.",
   "there is a pigeon on the track. he's fine. he's working.",
